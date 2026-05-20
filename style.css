@@ -364,7 +364,7 @@ body {
   position: absolute;
   bottom: 24px;
   right: 24px;
-  width: 380px;
+  width: 480px;
   background: var(--bg-card);
   backdrop-filter: blur(15px);
   border: 1px solid var(--border-glass);

@@ -430,10 +430,10 @@ function evaluateSegmentScore() {
   let rating = 'Miss';
   let className = 'miss';
 
-  if (average >= 85) {
+  if (average >= 80) {
     rating = 'Perfect';
     className = 'perfect';
-  } else if (average >= 70) {
+  } else if (average >= 50) {
     rating = 'Good';
     className = 'good';
   }
