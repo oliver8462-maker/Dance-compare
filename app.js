@@ -8,7 +8,7 @@ let isTestingState = false;
 let isPlayingState = false;
 
 // Real-time Scoring Variables
-let frameScores = []; // Scores in the current 2-second interval
+let frameScores = []; // Scores in the current 1.5-second interval
 let allScores = []; // All scores recorded during the test
 let feedbackIntervalId = null;
 let timelineIntervalId = null;
@@ -296,8 +296,8 @@ function startDanceSession() {
   // Set up timeline updates
   timelineIntervalId = setInterval(updateTimeline, 100);
 
-  // Set up 2-second score evaluator (Task 6)
-  feedbackIntervalId = setInterval(evaluateSegmentScore, 2000);
+  // Set up 1.5-second score evaluator (Task 6)
+  feedbackIntervalId = setInterval(evaluateSegmentScore, 1500);
 
   // Bind video ended trigger
   referenceVideo.onended = () => {
@@ -420,12 +420,12 @@ function updateTimeline() {
   timeDisplay.textContent = `${formatTime(current)} / ${formatTime(duration)}`;
 }
 
-// --- 6. 2-Second Segment Rating & Final Summary (Task 6) ---
+// --- 6. 1.5-Second Segment Rating & Final Summary (Task 6) ---
 function evaluateSegmentScore() {
   if (frameScores.length === 0) return;
 
   const average = frameScores.reduce((a, b) => a + b, 0) / frameScores.length;
-  frameScores = []; // Reset for next 2 seconds
+  frameScores = []; // Reset for next 1.5 seconds
 
   let rating = 'Miss';
   let className = 'miss';

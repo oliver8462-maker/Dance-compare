@@ -23,8 +23,8 @@ assert.strictEqual(simPerfect, 1.0, `Perfect matches should yield 1.0 similarity
 
 // 3. Test Score scaling
 assert.strictEqual(scaleScore(1.0), 100, 'Similarity of 1.0 should map to 100');
-assert.strictEqual(scaleScore(0.65), 0, 'Similarity of 0.65 should map to 0');
-assert.strictEqual(scaleScore(0.825), 50, 'Similarity of 0.825 should map to 50');
-assert.strictEqual(scaleScore(0.5), 0, 'Similarity below minSimilarity should map to 0');
+assert.strictEqual(scaleScore(0.55), 0, 'Similarity of 0.55 should map to 0');
+assert.strictEqual(scaleScore(0.775), 50, 'Similarity of 0.775 should map to 50');
+assert.strictEqual(scaleScore(0.4), 0, 'Similarity below minSimilarity should map to 0');
 
 console.log('All math tests passed successfully!');

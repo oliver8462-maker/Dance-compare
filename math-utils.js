@@ -61,7 +61,7 @@ export function computeJointSimilarity(refLandmarks, userLandmarks, minVisibilit
 /**
  * Scales the raw similarity average (typically 0.65-1.0) to a more satisfying 0-100 scale.
  */
-export function scaleScore(avgSim, minSimilarity = 0.65) {
+export function scaleScore(avgSim, minSimilarity = 0.55) {
   if (avgSim < minSimilarity) return 0;
   return Math.round(((avgSim - minSimilarity) / (1 - minSimilarity)) * 100);
 }
