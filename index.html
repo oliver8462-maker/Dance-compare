@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 舞蹈動作相似度評分系統</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- Google Fonts: Outfit for numbers, Noto Sans TC for traditional Chinese -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+
+    <!-- MediaPipe Pose CDN dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- 頂部導覽列 -->
+        <header class="app-header">
+            <div class="logo">
+                <span class="logo-icon">💃</span>
+                <h1>DanceAI <span>Pose Scorer</span></h1>
+            </div>
+            <div id="header-status" class="header-status">準備就緒</div>
+        </header>
+
+        <main class="app-content">
+            <!-- 階段一：上傳與背景分析畫面 -->
+            <section id="upload-section" class="card active">
+                <div class="dropzone" id="dropzone">
+                    <input type="file" id="video-input" accept="video/*" />
+                    <div class="dropzone-content">
+                        <div class="upload-icon">📤</div>
+                        <h3>上傳參考舞蹈影片</h3>
+                        <p>將影片拖曳至此處，或<span>點擊瀏覽檔案</span></p>
+                        <span class="upload-note">支援 MP4, WebM 格式影片</span>
+                    </div>
+                </div>
+
+                <!-- 預處理進度顯示 -->
+                <div id="preprocess-container" class="preprocess-container hidden">
+                    <div class="progress-info">
+                        <span id="preprocess-status-text">正在讀取影片資訊...</span>
+                        <span id="preprocess-percentage">0%</span>
+                    </div>
+                    <div class="progress-bar-wrapper">
+                        <div id="preprocess-progress-bar" class="progress-bar-fill"></div>
+                    </div>
+                    <p class="progress-detail-text">系統正在後台提取人體骨架特徵 (Pose Landmarks)，測試進行時將不需要網路運算。</p>
+                </div>
+
+                <!-- 開始按鈕 -->
+                <div id="start-control" class="start-control hidden">
+                    <div class="preprocess-success-badge">✓ 骨架分析完成</div>
+                    <button id="start-test-btn" class="btn btn-primary btn-large">開始測試 (Start Test)</button>
+                </div>
+            </section>
+
+            <!-- 階段二：測試進行畫面 (主鏡頭 + 角落影片 PiP) -->
+            <section id="test-section" class="test-container hidden">
+                <!-- 左側/背景：使用者相機即時畫面與骨架繪製 -->
+                <div class="camera-wrapper">
+                    <!-- webcam-video 隱藏，僅用於擷取影格 -->
+                    <video id="webcam-video" autoplay playsinline muted></video>
+                    <!-- canvas 填滿整個 wrapper 用於繪製鏡像的相機畫面與骨架 -->
+                    <canvas id="webcam-canvas"></canvas>
+                    
+                    <!-- 倒數覆蓋層 -->
+                    <div id="countdown-overlay" class="countdown-overlay hidden">
+                        <div id="countdown-number" class="countdown-text">3</div>
+                    </div>
+
+                    <!-- 即時浮動評價彈出區 -->
+                    <div id="feedback-container" class="feedback-container"></div>
+                </div>
+
+                <!-- 右側/角落：原參考影片子母畫面 (PiP) -->
+                <div class="pip-container" id="pip-container">
+                    <div class="pip-header">
+                        <span>參考舞蹈影片</span>
+                    </div>
+                    <div class="pip-video-wrapper">
+                        <video id="reference-video" crossorigin="anonymous"></video>
+                    </div>
+                </div>
+
+                <!-- 即時分數與進度儀表板 -->
+                <div class="scoring-overlay">
+                    <div class="score-card">
+                        <span class="score-label">即時相似度</span>
+                        <div class="score-value-container">
+                            <span id="current-score" class="score-value">--</span>
+                            <span class="score-unit">%</span>
+                        </div>
+                    </div>
+                    <div class="timeline-card">
+                        <span id="time-display">00:00 / 00:00</span>
+                        <div class="timeline-bar-wrapper">
+                            <div id="video-progress-bar" class="timeline-bar-fill"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 階段三：結算畫面 (全螢幕磨砂玻璃 Overlay) -->
+            <section id="summary-section" class="summary-overlay hidden">
+                <div class="summary-card">
+                    <div class="summary-icon">🏆</div>
+                    <h2>舞蹈測試結算</h2>
+                    
+                    <div class="grade-container">
+                        <div class="grade-circle">
+                            <span id="final-grade">A</span>
+                        </div>
+                        <p class="grade-label">動作評等</p>
+                    </div>
+
+                    <div class="final-score-box">
+                        <span class="final-score-label">總平均相似分數</span>
+                        <div class="final-score-value">
+                            <span id="final-score">85.4</span>
+                            <span class="score-unit">分</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-actions">
+                        <button id="retry-btn" class="btn btn-secondary">重新測試</button>
+                        <button id="new-video-btn" class="btn btn-primary">上傳新影片</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- 隱藏的工具元素 (Preprocessing 專用) -->
+        <video id="temp-video" style="display:none;" muted crossorigin="anonymous"></video>
+        <canvas id="temp-canvas" style="display:none;"></canvas>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

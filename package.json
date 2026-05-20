@@ -1,0 +1,12 @@
+{
+  "name": "dance-similarity-score",
+  "version": "1.0.0",
+  "description": "Dance Similarity Scoring Software",
+  "main": "app.js",
+  "type": "module",
+  "scripts": {
+    "dev": "npx http-server -p 8080 -c-1"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
