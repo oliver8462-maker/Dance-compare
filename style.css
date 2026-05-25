@@ -14,6 +14,7 @@
   
   /* Feedback Colors */
   --color-perfect: #fbbf24; /* Amber Gold */
+  --color-great: #06b6d4; /* Neon Cyan */
   --color-good: #10b981; /* Emerald Green */
   --color-miss: #ef4444; /* Rose Red */
   
@@ -325,6 +326,7 @@ body {
 /* Test Area Layout */
 .test-container {
   display: flex;
+  flex-direction: row-reverse; /* 左邊播放舞蹈影片，右邊顯示相機 */
   position: relative;
   width: 100%;
   height: calc(100vh - 130px);
@@ -336,14 +338,16 @@ body {
   box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
 }
 
-/* Left side - camera frame with canvas overlay */
+/* Left side - camera frame with canvas overlay -> Now right side due to row-reverse */
 .camera-wrapper {
   position: relative;
-  flex: 1;
+  flex: 0 0 50%; /* 剛好 50% 寬度 */
+  height: 100%;
   background: #030712;
   display: flex;
   justify-content: center;
   align-items: center;
+  border-left: 1px solid var(--border-glass);
 }
 
 /* Hidden webcam video elements */
@@ -359,20 +363,23 @@ body {
   transform: scaleX(-1); /* Mirror camera! */
 }
 
-/* Corner Video PiP styling */
+/* Corner Video PiP styling -> Now Left Side Split Screen */
 .pip-container {
-  position: absolute;
-  bottom: 24px;
-  right: 24px;
-  width: 480px;
-  background: var(--bg-card);
-  backdrop-filter: blur(15px);
-  border: 1px solid var(--border-glass);
-  border-radius: 18px;
+  position: relative; /* 改為相對定位 */
+  bottom: auto;
+  right: auto;
+  flex: 0 0 50%; /* 剛好 50% 寬度 */
+  height: 100%;
+  background: #000;
+  backdrop-filter: none;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
   z-index: 5;
   transition: all 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .pip-header {
@@ -382,13 +389,15 @@ body {
   color: var(--text-muted);
   border-bottom: 1px solid var(--border-glass);
   background: rgba(0, 0, 0, 0.2);
+  height: 32px;
 }
 
 .pip-video-wrapper {
   position: relative;
   width: 100%;
-  padding-top: 56.25%; /* 16:9 Aspect Ratio */
+  height: calc(100% - 32px); /* 扣除 Header 後填滿高度 */
   background: #000;
+  padding-top: 0; /* 移除原本 16:9 的 padding-top */
 }
 
 #reference-video {
@@ -397,7 +406,7 @@ body {
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: contain; /* 以內縮置中方式展示影片以看清完整動作 */
 }
 
 /* Countdown Screen */
@@ -455,6 +464,10 @@ body {
 
 .feedback-bubble.perfect {
   color: var(--color-perfect);
+}
+
+.feedback-bubble.great {
+  color: var(--color-great);
 }
 
 .feedback-bubble.good {

@@ -17,6 +17,16 @@ let timelineIntervalId = null;
 let poseModel = null;
 let cameraStream = null;
 let onResultsCallback = null;
+let latestUserLandmarks = null; // 儲存最新相機骨架偵測點
+let drawLoopId = null; // 60fps 畫布渲染迴圈 ID
+let lastInferenceTime = 0; // 上次推理的時間戳記
+let isInferenceRunning = false; // 是否正在進行推理
+
+// 效能優化：離屏縮圖畫布
+const smallCanvas = document.createElement('canvas');
+smallCanvas.width = 256;
+smallCanvas.height = 256;
+const smallCtx = smallCanvas.getContext('2d');
 
 // DOM Elements
 const headerStatus = document.getElementById('header-status');
@@ -62,7 +72,7 @@ function initPoseModel() {
   });
 
   poseModel.setOptions({
-    modelComplexity: 1,
+    modelComplexity: 0,
     smoothLandmarks: true,
     enableSegmentation: false,
     smoothSegmentation: false,
@@ -286,6 +296,14 @@ function startDanceSession() {
   headerStatus.textContent = "測試進行中...";
   headerStatus.style.color = "var(--primary)";
 
+  // 重設效能與骨骼暫存變數
+  latestUserLandmarks = null;
+  lastInferenceTime = 0;
+  isInferenceRunning = false;
+
+  // 啟動 60fps 畫布獨立繪製迴圈
+  drawWebcamCanvas();
+
   // Play reference video
   referenceVideo.currentTime = 0;
   referenceVideo.play();
@@ -312,29 +330,39 @@ function startDanceSession() {
 async function processWebcamFrame() {
   if (!isPlayingState) return;
 
-  if (webcamVideo.readyState === webcamVideo.HAVE_ENOUGH_DATA) {
-    await poseModel.send({ image: webcamVideo });
+  const now = Date.now();
+  const inferenceInterval = 50; // 50ms = 20 FPS 運算頻率
+  
+  if (!isInferenceRunning && now - lastInferenceTime >= inferenceInterval) {
+    if (webcamVideo.readyState === webcamVideo.HAVE_ENOUGH_DATA) {
+      isInferenceRunning = true;
+      lastInferenceTime = now;
+      try {
+        // 將相機畫面以 2D 環境快速縮圖到 256x256，大幅減少 MediaPipe 的內建縮放與轉換資源，徹底消除卡頓
+        smallCtx.drawImage(webcamVideo, 0, 0, 256, 256);
+        await poseModel.send({ image: smallCanvas });
+      } catch (err) {
+        console.error("MediaPipe 推理錯誤: ", err);
+      } finally {
+        isInferenceRunning = false;
+      }
+    }
   }
 
   requestAnimationFrame(processWebcamFrame);
 }
 
-// Handles live MediaPipe results from webcam
 function handleLiveWebcamResults(results) {
   if (!isPlayingState) return;
 
-  // Clear canvas
-  webcamCtx.clearRect(0, 0, webcamCanvas.width, webcamCanvas.height);
+  // 更新最新的骨架點
+  latestUserLandmarks = results.poseLandmarks ? results.poseLandmarks : null;
 
-  // 1. Draw webcam image
-  webcamCtx.drawImage(results.image, 0, 0, webcamCanvas.width, webcamCanvas.height);
-
-  // 2. Fetch the corresponding reference frame landmarks
+  // 獲取影片當前時間點對應特徵，直接對齊時間軸（移除延遲補償）
   const currentTime = referenceVideo.currentTime;
   const targetIndex = Math.min(poseFeatures.length - 1, Math.round(currentTime * 30));
   const refFrame = poseFeatures[targetIndex];
 
-  // 3. Compute score if landmarks exist
   if (refFrame && refFrame.landmarks && results.poseLandmarks) {
     const similarity = computeJointSimilarity(refFrame.landmarks, results.poseLandmarks);
     const score = scaleScore(similarity);
@@ -345,9 +373,24 @@ function handleLiveWebcamResults(results) {
   } else {
     currentScoreEl.textContent = "0";
   }
+}
 
-  // 4. Draw user skeleton skeleton
-  drawSkeleton(webcamCtx, results.poseLandmarks);
+function drawWebcamCanvas() {
+  if (!isPlayingState) return;
+
+  // 1. 清除畫布並繪製即時相機畫面
+  webcamCtx.clearRect(0, 0, webcamCanvas.width, webcamCanvas.height);
+  if (webcamVideo.readyState >= webcamVideo.HAVE_CURRENT_DATA) {
+    webcamCtx.drawImage(webcamVideo, 0, 0, webcamCanvas.width, webcamCanvas.height);
+  }
+
+  // 2. 疊加繪製最新的使用者骨骼
+  if (latestUserLandmarks) {
+    drawSkeleton(webcamCtx, latestUserLandmarks);
+  }
+
+  // 持續進行渲染
+  drawLoopId = requestAnimationFrame(drawWebcamCanvas);
 }
 
 // Sleek Custom Skeleton Renderer
@@ -355,15 +398,26 @@ function drawSkeleton(ctx, landmarks) {
   if (!landmarks) return;
 
   const connections = [
-    [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // Upper body
-    [11, 23], [12, 24], [23, 24], // Torso
-    [23, 25], [25, 27], [24, 26], [26, 28] // Lower body
+    // Face
+    [0, 1], [0, 4], [1, 2], [2, 3], [3, 7],
+    [4, 5], [5, 6], [6, 8], [9, 10],
+    // Upper body & Torso
+    [11, 12], [11, 13], [13, 15], [12, 14], [14, 16],
+    [11, 23], [12, 24], [23, 24],
+    // Hands
+    [15, 17], [15, 19], [15, 21], [17, 19],
+    [16, 18], [16, 20], [16, 22], [18, 20],
+    // Lower body
+    [23, 25], [25, 27], [24, 26], [26, 28],
+    // Feet
+    [27, 29], [27, 31], [29, 31],
+    [28, 30], [28, 32], [30, 32]
   ];
 
   ctx.save();
-  ctx.lineWidth = 5;
+  ctx.lineWidth = 2.5; // 縮小線條寬度 (原 5)
   ctx.strokeStyle = 'rgba(99, 102, 241, 0.85)'; // Neon Indigo
-  ctx.shadowBlur = 10;
+  ctx.shadowBlur = 6; // 減小發光模糊半徑 (原 10)
   ctx.shadowColor = 'rgba(99, 102, 241, 0.6)';
 
   // Draw connectors
@@ -379,27 +433,31 @@ function drawSkeleton(ctx, landmarks) {
   });
 
   // Draw joints
-  const keyJoints = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
-  keyJoints.forEach((idx) => {
+  const coreJoints = [11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28];
+  for (let idx = 0; idx < landmarks.length; idx++) {
     const p = landmarks[idx];
     if (p && (p.visibility || 0) > 0.5) {
+      const isCore = coreJoints.includes(idx);
+      const radius = isCore ? 5 : 3; // 核心點 5px，細節點 3px (原 10px / 6px)
+      const outerRadius = isCore ? 8 : 5;
+
       // Joint Fill (Hot Pink)
       ctx.beginPath();
-      ctx.arc(p.x * webcamCanvas.width, p.y * webcamCanvas.height, 6, 0, 2 * Math.PI);
+      ctx.arc(p.x * webcamCanvas.width, p.y * webcamCanvas.height, radius, 0, 2 * Math.PI);
       ctx.fillStyle = '#ec4899';
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = isCore ? 10 : 5;
       ctx.shadowColor = '#ec4899';
       ctx.fill();
 
       // Outer rings (White border)
       ctx.beginPath();
-      ctx.arc(p.x * webcamCanvas.width, p.y * webcamCanvas.height, 10, 0, 2 * Math.PI);
+      ctx.arc(p.x * webcamCanvas.width, p.y * webcamCanvas.height, outerRadius, 0, 2 * Math.PI);
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1.0;
       ctx.shadowBlur = 0;
       ctx.stroke();
     }
-  });
+  }
 
   ctx.restore();
 }
@@ -433,7 +491,10 @@ function evaluateSegmentScore() {
   if (average >= 80) {
     rating = 'Perfect';
     className = 'perfect';
-  } else if (average >= 50) {
+  } else if (average >= 70) {
+    rating = 'Great';
+    className = 'great';
+  } else if (average >= 55) {
     rating = 'Good';
     className = 'good';
   }
@@ -457,6 +518,12 @@ function endDanceSession() {
   clearInterval(feedbackIntervalId);
   clearInterval(timelineIntervalId);
 
+  // 停止 60fps 畫布繪製迴圈
+  if (drawLoopId) {
+    cancelAnimationFrame(drawLoopId);
+    drawLoopId = null;
+  }
+
   // Stop webcam tracks
   if (cameraStream) {
     cameraStream.getTracks().forEach(track => track.stop());
@@ -470,11 +537,12 @@ function endDanceSession() {
     ? (allScores.reduce((a, b) => a + b, 0) / allScores.length)
     : 0;
 
-  // Grade classification
-  let grade = 'C';
-  if (finalAverage >= 90) grade = 'S';
-  else if (finalAverage >= 80) grade = 'A';
+  // Grade classification (A ~ E)
+  let grade = 'E';
+  if (finalAverage >= 85) grade = 'A';
   else if (finalAverage >= 70) grade = 'B';
+  else if (finalAverage >= 55) grade = 'C';
+  else if (finalAverage >= 40) grade = 'D';
 
   // Display summary overlay modal
   finalGradeEl.textContent = grade;
@@ -491,6 +559,12 @@ function resetToUploadState() {
 
   clearInterval(feedbackIntervalId);
   clearInterval(timelineIntervalId);
+
+  // 停止 60fps 畫布繪製迴圈
+  if (drawLoopId) {
+    cancelAnimationFrame(drawLoopId);
+    drawLoopId = null;
+  }
 
   isTestingState = false;
   isPlayingState = false;

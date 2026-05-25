@@ -8,8 +8,13 @@ export const JOINTS = {
   LEFT_KNEE: { name: 'Left Knee', points: [23, 25, 27] },
   RIGHT_KNEE: { name: 'Right Knee', points: [24, 26, 28] },
   LEFT_HIP: { name: 'Left Hip', points: [11, 23, 25] },
-  RIGHT_HIP: { name: 'Right Hip', points: [12, 24, 26] }
+  RIGHT_HIP: { name: 'Right Hip', points: [12, 24, 26] },
+  LEFT_WRIST: { name: 'Left Wrist', points: [13, 15, 19] },
+  RIGHT_WRIST: { name: 'Right Wrist', points: [14, 16, 20] },
+  LEFT_ANKLE: { name: 'Left Ankle', points: [25, 27, 31] },
+  RIGHT_ANKLE: { name: 'Right Ankle', points: [26, 28, 32] }
 };
+
 
 /**
  * Calculates the angle (in radians) between three 2D points with p2 as the vertex.
@@ -49,7 +54,8 @@ export function computeJointSimilarity(refLandmarks, userLandmarks, minVisibilit
       const refAngle = getAngle(refP1, refP2, refP3);
       const userAngle = getAngle(userP1, userP2, userP3);
       const diff = Math.abs(refAngle - userAngle);
-      const sim = 1 - (diff / Math.PI); // Normalize diff (0 to PI) into similarity (1 down to 0)
+      // 極寬鬆夾角扣分：除以 Math.PI，最大容許誤差為 180 度
+      const sim = Math.max(0, 1 - (diff / Math.PI));
       totalSim += sim;
       validCount++;
     }
@@ -58,10 +64,16 @@ export function computeJointSimilarity(refLandmarks, userLandmarks, minVisibilit
   return validCount > 0 ? totalSim / validCount : 0;
 }
 
-/**
- * Scales the raw similarity average (typically 0.65-1.0) to a more satisfying 0-100 scale.
- */
-export function scaleScore(avgSim, minSimilarity = 0.55) {
+export function scaleScore(avgSim, minSimilarity = 0.40) {
   if (avgSim < minSimilarity) return 0;
-  return Math.round(((avgSim - minSimilarity) / (1 - minSimilarity)) * 100);
+  const k = 12.0;
+  const m = 0.70;
+  const sigmoid = (x) => 1 / (1 + Math.exp(-k * (x - m)));
+  
+  const f_sim = sigmoid(avgSim);
+  const f_min = sigmoid(minSimilarity);
+  const f_max = sigmoid(1.0);
+  
+  const score = ((f_sim - f_min) / (f_max - f_min)) * 100;
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
