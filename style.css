@@ -14,7 +14,7 @@
   
   /* Feedback Colors */
   --color-perfect: #fbbf24; /* Amber Gold */
-  --color-great: #06b6d4; /* Neon Cyan */
+  --color-great: #ec4899; /* Hot Pink */
   --color-good: #10b981; /* Emerald Green */
   --color-miss: #ef4444; /* Rose Red */
   
@@ -577,7 +577,9 @@ body {
   z-index: 100;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  overflow-y: auto;
+  padding: 40px 20px;
   animation: fade-in 0.4s ease-out;
 }
 
@@ -593,6 +595,7 @@ body {
   flex-direction: column;
   align-items: center;
   text-align: center;
+  margin: auto;
 }
 
 .summary-icon {
@@ -831,11 +834,11 @@ body {
 .stat-item.perfect .stat-count { color: #facc15; text-shadow: 0 0 8px rgba(251, 191, 36, 0.3); }
 
 .stat-item.great {
-  border-color: rgba(6, 182, 212, 0.3);
-  box-shadow: inset 0 0 10px rgba(6, 182, 212, 0.03);
+  border-color: rgba(236, 72, 153, 0.3);
+  box-shadow: inset 0 0 10px rgba(236, 72, 153, 0.03);
 }
-.stat-item.great .stat-label { color: #22d3ee; }
-.stat-item.great .stat-count { color: #22d3ee; text-shadow: 0 0 8px rgba(6, 182, 212, 0.3); }
+.stat-item.great .stat-label { color: #f472b6; }
+.stat-item.great .stat-count { color: #f472b6; text-shadow: 0 0 8px rgba(236, 72, 153, 0.3); }
 
 .stat-item.good {
   border-color: rgba(16, 185, 129, 0.3);
