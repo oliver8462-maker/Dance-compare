@@ -77,3 +77,34 @@ export function scaleScore(avgSim, minSimilarity = 0.40) {
   const score = ((f_sim - f_min) / (f_max - f_min)) * 100;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
+
+/**
+ * Computes individual similarity of each visible joint.
+ * Returns an object mapping joint keys to their similarity values (0.0 to 1.0).
+ */
+export function computeJointSimilarities(refLandmarks, userLandmarks, minVisibility = 0.5) {
+  const details = {};
+  for (const key in JOINTS) {
+    const [i1, i2, i3] = JOINTS[key].points;
+    const refP1 = refLandmarks[i1], refP2 = refLandmarks[i2], refP3 = refLandmarks[i3];
+    const userP1 = userLandmarks[i1], userP2 = userLandmarks[i2], userP3 = userLandmarks[i3];
+
+    // Ensure points exist
+    if (!refP1 || !refP2 || !refP3 || !userP1 || !userP2 || !userP3) continue;
+
+    // Check visibility
+    const refVis = Math.min(refP1.visibility || 0, refP2.visibility || 0, refP3.visibility || 0);
+    const userVis = Math.min(userP1.visibility || 0, userP2.visibility || 0, userP3.visibility || 0);
+
+    if (refVis >= minVisibility && userVis >= minVisibility) {
+      const refAngle = getAngle(refP1, refP2, refP3);
+      const userAngle = getAngle(userP1, userP2, userP3);
+      const diff = Math.abs(refAngle - userAngle);
+      // Joint similarity mapping matching main similarity calculation
+      const sim = Math.max(0, 1 - (diff / Math.PI));
+      details[key] = sim;
+    }
+  }
+  return details;
+}
+

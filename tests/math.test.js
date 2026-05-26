@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { getAngle, computeJointSimilarity, scaleScore } from '../math-utils.js';
+import { getAngle, computeJointSimilarity, scaleScore, computeJointSimilarities } from '../math-utils.js';
 
 console.log('Running math-utils tests...');
 
@@ -21,5 +21,14 @@ assert.strictEqual(scaleScore(1.0), 100, 'Similarity of 1.0 should map to 100');
 assert.strictEqual(scaleScore(0.40), 0, 'Similarity of 0.40 should map to 0');
 assert.ok(scaleScore(0.70) >= 45 && scaleScore(0.70) <= 55, 'Similarity of 0.70 (midpoint) should be around 50');
 assert.strictEqual(scaleScore(0.3), 0, 'Similarity below minSimilarity should map to 0');
+
+// 4. Test Joint Similarities (Individual joint scoring)
+const mockLandmarksUser = Array(33).fill(null).map((_, idx) => ({ x: idx, y: idx * 2, visibility: 0.9 }));
+// Modify LEFT_ELBOW points to introduce mismatch
+mockLandmarksUser[13] = { x: 13, y: 13 * 2 + 5, visibility: 0.9 }; // Vertex p2 is at index 13
+const details = computeJointSimilarities(mockLandmarks, mockLandmarksUser);
+assert.ok(details.LEFT_ELBOW !== undefined, 'LEFT_ELBOW should be evaluated');
+assert.ok(details.LEFT_ELBOW < 1.0, 'LEFT_ELBOW similarity should be less than 1.0');
+assert.strictEqual(details.RIGHT_ELBOW, 1.0, 'RIGHT_ELBOW similarity should be exactly 1.0');
 
 console.log('All math tests passed successfully!');
