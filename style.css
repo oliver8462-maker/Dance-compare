@@ -781,3 +781,103 @@ body {
     font-size: 2.2rem;
   }
 }
+
+/* --- Stats Grid & Summary Breakdown --- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  width: 100%;
+  margin: 15px 0;
+}
+
+.stat-item {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 10px 5px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.stat-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+
+.stat-count {
+  font-family: var(--font-numeric);
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+/* Badge specific color schemes */
+.stat-item.perfect {
+  border-color: rgba(251, 191, 36, 0.3);
+  box-shadow: inset 0 0 10px rgba(251, 191, 36, 0.03);
+}
+.stat-item.perfect .stat-label { color: #facc15; }
+.stat-item.perfect .stat-count { color: #facc15; text-shadow: 0 0 8px rgba(251, 191, 36, 0.3); }
+
+.stat-item.great {
+  border-color: rgba(6, 182, 212, 0.3);
+  box-shadow: inset 0 0 10px rgba(6, 182, 212, 0.03);
+}
+.stat-item.great .stat-label { color: #22d3ee; }
+.stat-item.great .stat-count { color: #22d3ee; text-shadow: 0 0 8px rgba(6, 182, 212, 0.3); }
+
+.stat-item.good {
+  border-color: rgba(16, 185, 129, 0.3);
+  box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.03);
+}
+.stat-item.good .stat-label { color: #34d399; }
+.stat-item.good .stat-count { color: #34d399; text-shadow: 0 0 8px rgba(16, 185, 129, 0.3); }
+
+.stat-item.miss {
+  border-color: rgba(239, 68, 68, 0.3);
+  box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.03);
+}
+.stat-item.miss .stat-label { color: #f87171; }
+.stat-item.miss .stat-count { color: #f87171; text-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+
+/* AI Advice Card style */
+.advice-card {
+  background: rgba(99, 102, 241, 0.05);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 16px;
+  padding: 14px 16px;
+  width: 100%;
+  margin: 10px 0 20px 0;
+  text-align: left;
+  box-shadow: 0 8px 32px rgba(99, 102, 241, 0.03);
+  backdrop-filter: blur(8px);
+}
+
+.advice-header {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #c7d2fe;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.advice-text {
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: rgba(248, 250, 252, 0.85);
+  margin: 0;
+}
+
