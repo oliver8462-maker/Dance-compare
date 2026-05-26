@@ -599,10 +599,10 @@ function endDanceSession() {
 
   // Grade classification (A ~ E)
   let grade = 'E';
-  if (finalAverage >= 85) grade = 'A';
+  if (finalAverage >= 80) grade = 'A';
   else if (finalAverage >= 70) grade = 'B';
-  else if (finalAverage >= 55) grade = 'C';
-  else if (finalAverage >= 40) grade = 'D';
+  else if (finalAverage >= 50) grade = 'C';
+  else if (finalAverage >= 30) grade = 'D';
 
   // Display summary overlay modal and rating stats
   perfectCountEl.textContent = ratingsCount.perfect;
