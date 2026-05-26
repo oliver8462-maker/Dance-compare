@@ -23,3 +23,10 @@
 | Task 19: Delay Removal & Arcade Scoring Brainstorming | [x] | Plan 0.3s delay removal and arcade sigmoid parameters (midpoint 0.70, k 12.0) |
 | Task 20: Implement Delay Removal & Arcade Scoring | [x] | Update app.js to use currentTime, adjust math-utils.js and tests/math.test.js for arcade scoring |
 | Task 21: final Verification & Walkthrough of Arcade Scoring | [x] | Run tests, verify gameplay, write walkthrough |
+| Task 22: Score Summary & Feedback Brainstorming and Design | [x] | Formulate design and write system design document |
+| Task 23: Implement computeJointSimilarities and Unit Tests | [x] | Create helper in math-utils.js and verify with math.test.js |
+| Task 24: Implement HTML / CSS for Stats Grid and Advice Card | [x] | Add stats-grid and advice-card markup and styling |
+| Task 25: Integrate Rating Counters & AI Feedback Generator in app.js | [x] | Track segment ratings and visible joint scores, generate advice |
+| Task 26: Final Verification & Walkthrough of Feedback Feature | [x] | Run tests, verify integrated game flow, write walkthrough |
+| Task 27: Implement detailed angle descriptions and MM:SS timeline of mistakes | [x] | Track time-stamped mistakes, format MM:SS timestamps, and translate angle errors (too large/too small) |
+

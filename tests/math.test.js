@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { getAngle, computeJointSimilarity, scaleScore, computeJointSimilarities } from '../math-utils.js';
+import { getAngle, computeJointSimilarity, scaleScore, computeJointSimilarities, computeJointDetails } from '../math-utils.js';
 
 console.log('Running math-utils tests...');
 
@@ -30,5 +30,13 @@ const details = computeJointSimilarities(mockLandmarks, mockLandmarksUser);
 assert.ok(details.LEFT_ELBOW !== undefined, 'LEFT_ELBOW should be evaluated');
 assert.ok(details.LEFT_ELBOW < 1.0, 'LEFT_ELBOW similarity should be less than 1.0');
 assert.strictEqual(details.RIGHT_ELBOW, 1.0, 'RIGHT_ELBOW similarity should be exactly 1.0');
+
+// 5. Test Joint Details (Individual joint details containing angles)
+const detailInfo = computeJointDetails(mockLandmarks, mockLandmarksUser);
+assert.ok(detailInfo.LEFT_ELBOW !== undefined, 'LEFT_ELBOW details should exist');
+assert.ok(detailInfo.LEFT_ELBOW.sim < 1.0, 'LEFT_ELBOW detailed similarity should be < 1.0');
+assert.ok(detailInfo.LEFT_ELBOW.refAngle !== undefined, 'refAngle should exist');
+assert.ok(detailInfo.LEFT_ELBOW.userAngle !== undefined, 'userAngle should exist');
+assert.ok(detailInfo.LEFT_ELBOW.diff > 0, 'diff should be positive');
 
 console.log('All math tests passed successfully!');

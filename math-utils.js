@@ -108,3 +108,32 @@ export function computeJointSimilarities(refLandmarks, userLandmarks, minVisibil
   return details;
 }
 
+/**
+ * Computes individual details of each visible joint, including angles and diffs.
+ */
+export function computeJointDetails(refLandmarks, userLandmarks, minVisibility = 0.5) {
+  const details = {};
+  for (const key in JOINTS) {
+    const [i1, i2, i3] = JOINTS[key].points;
+    const refP1 = refLandmarks[i1], refP2 = refLandmarks[i2], refP3 = refLandmarks[i3];
+    const userP1 = userLandmarks[i1], userP2 = userLandmarks[i2], userP3 = userLandmarks[i3];
+
+    // Ensure points exist
+    if (!refP1 || !refP2 || !refP3 || !userP1 || !userP2 || !userP3) continue;
+
+    // Check visibility
+    const refVis = Math.min(refP1.visibility || 0, refP2.visibility || 0, refP3.visibility || 0);
+    const userVis = Math.min(userP1.visibility || 0, userP2.visibility || 0, userP3.visibility || 0);
+
+    if (refVis >= minVisibility && userVis >= minVisibility) {
+      const refAngle = getAngle(refP1, refP2, refP3);
+      const userAngle = getAngle(userP1, userP2, userP3);
+      const diff = Math.abs(refAngle - userAngle);
+      const sim = Math.max(0, 1 - (diff / Math.PI));
+      details[key] = { sim, refAngle, userAngle, diff };
+    }
+  }
+  return details;
+}
+
+

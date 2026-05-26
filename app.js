@@ -1,5 +1,5 @@
 // Main application logic - Dance Similarity Scoring Software
-import { computeJointSimilarity, scaleScore, computeJointSimilarities } from './math-utils.js';
+import { computeJointSimilarity, scaleScore, computeJointSimilarities, computeJointDetails } from './math-utils.js';
 
 // Application State Variables
 let poseFeatures = []; // Preprocessed reference pose landmarks sequence
@@ -16,6 +16,7 @@ let timelineIntervalId = null;
 // Rating stats and joint tracking accumulators
 let ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
 let jointAccumulators = {}; // { JOINT_KEY: { sum: 0, count: 0 } }
+let sessionMistakes = []; // Array of { time, jointKey, userAngle, refAngle, diff }
 
 const JOINT_ADVICE = {
   LEFT_ELBOW: { name: '左手肘', advice: '可以多注意左手臂彎曲的伸展度，讓動作更到位。' },
@@ -82,6 +83,7 @@ const greatCountEl = document.getElementById('great-count');
 const goodCountEl = document.getElementById('good-count');
 const missCountEl = document.getElementById('miss-count');
 const adviceTextEl = document.getElementById('advice-text');
+const mistakesTimelineEl = document.getElementById('mistakes-timeline');
 
 const tempVideo = document.getElementById('temp-video');
 const tempCanvas = document.getElementById('temp-canvas');
@@ -264,6 +266,7 @@ async function initiateDanceTest() {
   allScores = [];
   ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
   jointAccumulators = {};
+  sessionMistakes = [];
   
   uploadSection.classList.add('hidden');
   testSection.classList.remove('hidden');
@@ -397,14 +400,30 @@ function handleLiveWebcamResults(results) {
     frameScores.push(score);
     allScores.push(score);
 
-    // Track detailed visible joint similarity
-    const jointSims = computeJointSimilarities(refFrame.landmarks, results.poseLandmarks);
-    for (const key in jointSims) {
+    // Track detailed visible joint similarity and record substantial mistakes
+    const jointDetails = computeJointDetails(refFrame.landmarks, results.poseLandmarks);
+    for (const key in jointDetails) {
+      const details = jointDetails[key];
       if (!jointAccumulators[key]) {
         jointAccumulators[key] = { sum: 0, count: 0 };
       }
-      jointAccumulators[key].sum += jointSims[key];
+      jointAccumulators[key].sum += details.sim;
       jointAccumulators[key].count++;
+
+      // Check if this is a significant mistake (diff > 0.45 radians, i.e., ~25 degrees mismatch)
+      if (details.diff > 0.45) {
+        const lastMistake = sessionMistakes.filter(m => m.jointKey === key).pop();
+        // Throttle mistakes for the same joint to once every 2 seconds
+        if (!lastMistake || (currentTime - lastMistake.time) >= 2.0) {
+          sessionMistakes.push({
+            time: currentTime,
+            jointKey: key,
+            userAngle: details.userAngle,
+            refAngle: details.refAngle,
+            diff: details.diff
+          });
+        }
+      }
     }
   } else {
     currentScoreEl.textContent = "0";
@@ -629,9 +648,62 @@ function endDanceSession() {
   
   adviceTextEl.innerHTML = adviceHTML;
 
+  // Render mistakes timeline list
+  const worstMistakes = [...sessionMistakes]
+    .sort((a, b) => b.diff - a.diff) // Sort descending by error magnitude
+    .slice(0, 4) // Get top 4 worst mistakes
+    .sort((a, b) => a.time - b.time); // Sort chronologically by time stamp
+
+  if (worstMistakes.length > 0) {
+    mistakesTimelineEl.classList.remove('hidden');
+    let html = '<div class="advice-header">⚠️ 關鍵失誤時間點與動作</div>';
+    html += worstMistakes.map(m => {
+      const timeStr = `${Math.floor(m.time / 60).toString().padStart(2, '0')}:${Math.floor(m.time % 60).toString().padStart(2, '0')}`;
+      const label = getDetailedMistakeLabel(m.jointKey, m.userAngle, m.refAngle);
+      return `<div class="mistake-item">
+                <span class="mistake-time">${timeStr}</span>
+                <span class="mistake-desc">${label}</span>
+              </div>`;
+    }).join('');
+    mistakesTimelineEl.innerHTML = html;
+  } else {
+    mistakesTimelineEl.classList.add('hidden');
+    mistakesTimelineEl.innerHTML = '';
+  }
+
   finalGradeEl.textContent = grade;
   finalScoreEl.textContent = finalAverage.toFixed(1);
   summarySection.classList.remove('hidden');
+}
+
+/**
+ * Helper to convert joint keys and angle relations to precise description.
+ */
+function getDetailedMistakeLabel(jointKey, userAngle, refAngle) {
+  const isTooSmall = userAngle < refAngle;
+  const jointName = JOINT_ADVICE[jointKey]?.name || jointKey;
+  switch (jointKey) {
+    case 'LEFT_ELBOW':
+    case 'RIGHT_ELBOW':
+      return `${jointName}彎曲角度${isTooSmall ? '太大（手臂彎得太緊）' : '太小（手臂伸得太直）'}`;
+    case 'LEFT_KNEE':
+    case 'RIGHT_KNEE':
+      return `${jointName}彎曲角度${isTooSmall ? '太大（重心下蹲過深）' : '太小（下蹲幅度不夠）'}`;
+    case 'LEFT_SHOULDER':
+    case 'RIGHT_SHOULDER':
+      return `${jointName}抬起高度${isTooSmall ? '不足（肩膀夾角太小）' : '過高（肩膀夾角太大）'}`;
+    case 'LEFT_WRIST':
+    case 'RIGHT_WRIST':
+      return `${jointName}擺放位置角度${isTooSmall ? '過小' : '過大'}`;
+    case 'LEFT_HIP':
+    case 'RIGHT_HIP':
+      return `${jointName}重心轉動${isTooSmall ? '幅度不足' : '幅度過大'}`;
+    case 'LEFT_ANKLE':
+    case 'RIGHT_ANKLE':
+      return `${jointName}站立夾角${isTooSmall ? '偏窄' : '偏寬'}`;
+    default:
+      return `${jointName}動作夾角${isTooSmall ? '太小' : '太大'}`;
+  }
 }
 
 // --- 7. State Reset Handlers ---
@@ -655,6 +727,7 @@ function resetToUploadState() {
   poseFeatures = [];
   ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
   jointAccumulators = {};
+  sessionMistakes = [];
 
   testSection.classList.add('hidden');
   summarySection.classList.add('hidden');
