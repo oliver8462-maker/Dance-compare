@@ -1,5 +1,5 @@
 // Main application logic - Dance Similarity Scoring Software
-import { computeJointSimilarity, scaleScore } from './math-utils.js';
+import { computeJointSimilarity, scaleScore, computeJointSimilarities } from './math-utils.js';
 
 // Application State Variables
 let poseFeatures = []; // Preprocessed reference pose landmarks sequence
@@ -12,6 +12,25 @@ let frameScores = []; // Scores in the current 1.5-second interval
 let allScores = []; // All scores recorded during the test
 let feedbackIntervalId = null;
 let timelineIntervalId = null;
+
+// Rating stats and joint tracking accumulators
+let ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
+let jointAccumulators = {}; // { JOINT_KEY: { sum: 0, count: 0 } }
+
+const JOINT_ADVICE = {
+  LEFT_ELBOW: { name: '左手肘', advice: '可以多注意左手臂彎曲的伸展度，讓動作更到位。' },
+  RIGHT_ELBOW: { name: '右手肘', advice: '可以多注意右手手臂的彎曲與伸展角度。' },
+  LEFT_SHOULDER: { name: '左肩膀', advice: '左側肩膀的擺幅或抬高高度可以再做大一些，讓動作更舒展。' },
+  RIGHT_SHOULDER: { name: '右肩膀', advice: '右側肩膀的開合或抬高高度可以再加強一些，增加表現力。' },
+  LEFT_KNEE: { name: '左膝蓋', advice: '左腳膝蓋的彎曲下蹲幅度可以再深一些，這能讓你的重心更穩。' },
+  RIGHT_KNEE: { name: '右膝蓋', advice: '右腳膝蓋的下蹲或伸直細節可以做得更確實，有助於高分。' },
+  LEFT_HIP: { name: '左髖部/臀部', advice: '左半邊身體的扭轉或骨盆重心擺放可以更穩定，保持姿態流暢。' },
+  RIGHT_HIP: { name: '右髖部/臀部', advice: '右半邊身體的扭轉或下盤重心維持可以更明確，提升動作美感。' },
+  LEFT_WRIST: { name: '左手腕', advice: '左手手掌或手腕的延伸角度可以再精準一點。' },
+  RIGHT_WRIST: { name: '右手腕', advice: '右手手掌或手腕的指引方向與擺放位置可以再精緻一些。' },
+  LEFT_ANKLE: { name: '左腳踝', advice: '左腳跨步的重心或步幅可以再精準確實一些。' },
+  RIGHT_ANKLE: { name: '右腳踝', advice: '右腳跨步的重心或步幅可以再精準確實一些。' }
+};
 
 // MediaPipe and Camera Variables
 let poseModel = null;
@@ -58,6 +77,11 @@ const finalGradeEl = document.getElementById('final-grade');
 const finalScoreEl = document.getElementById('final-score');
 const retryBtn = document.getElementById('retry-btn');
 const newVideoBtn = document.getElementById('new-video-btn');
+const perfectCountEl = document.getElementById('perfect-count');
+const greatCountEl = document.getElementById('great-count');
+const goodCountEl = document.getElementById('good-count');
+const missCountEl = document.getElementById('miss-count');
+const adviceTextEl = document.getElementById('advice-text');
 
 const tempVideo = document.getElementById('temp-video');
 const tempCanvas = document.getElementById('temp-canvas');
@@ -238,6 +262,8 @@ async function initiateDanceTest() {
   isPlayingState = false;
   frameScores = [];
   allScores = [];
+  ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
+  jointAccumulators = {};
   
   uploadSection.classList.add('hidden');
   testSection.classList.remove('hidden');
@@ -370,6 +396,16 @@ function handleLiveWebcamResults(results) {
     currentScoreEl.textContent = score;
     frameScores.push(score);
     allScores.push(score);
+
+    // Track detailed visible joint similarity
+    const jointSims = computeJointSimilarities(refFrame.landmarks, results.poseLandmarks);
+    for (const key in jointSims) {
+      if (!jointAccumulators[key]) {
+        jointAccumulators[key] = { sum: 0, count: 0 };
+      }
+      jointAccumulators[key].sum += jointSims[key];
+      jointAccumulators[key].count++;
+    }
   } else {
     currentScoreEl.textContent = "0";
   }
@@ -491,12 +527,17 @@ function evaluateSegmentScore() {
   if (average >= 80) {
     rating = 'Perfect';
     className = 'perfect';
+    ratingsCount.perfect++;
   } else if (average >= 70) {
     rating = 'Great';
     className = 'great';
+    ratingsCount.great++;
   } else if (average >= 55) {
     rating = 'Good';
     className = 'good';
+    ratingsCount.good++;
+  } else {
+    ratingsCount.miss++;
   }
 
   // Create floating bubble DOM element
@@ -544,7 +585,50 @@ function endDanceSession() {
   else if (finalAverage >= 55) grade = 'C';
   else if (finalAverage >= 40) grade = 'D';
 
-  // Display summary overlay modal
+  // Display summary overlay modal and rating stats
+  perfectCountEl.textContent = ratingsCount.perfect;
+  greatCountEl.textContent = ratingsCount.great;
+  goodCountEl.textContent = ratingsCount.good;
+  missCountEl.textContent = ratingsCount.miss;
+
+  // Generate AI advice
+  let lowestJoints = [];
+  for (const key in jointAccumulators) {
+    if (jointAccumulators[key].count > 5) { // Filter out joints with very few samples
+      const avg = jointAccumulators[key].sum / jointAccumulators[key].count;
+      lowestJoints.push({ key, avg });
+    }
+  }
+
+  // Sort lowest joint similarity ascending (worst performing first)
+  lowestJoints.sort((a, b) => a.avg - b.avg);
+
+  let adviceHTML = '';
+  const overallAvg = allScores.length > 0 ? (allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
+
+  if (overallAvg >= 85 && lowestJoints.length > 0 && lowestJoints[0].avg >= 0.85) {
+    adviceHTML = '🌟 <strong>表現無懈可擊！</strong>您的所有動作配合得極為完美，各關節的角度拿捏非常精準，繼續保持！';
+  } else if (lowestJoints.length > 0) {
+    const worstCount = Math.min(2, lowestJoints.length);
+    const worstLabels = [];
+    for (let i = 0; i < worstCount; i++) {
+      const item = lowestJoints[i];
+      const adviceInfo = JOINT_ADVICE[item.key];
+      if (adviceInfo) {
+        worstLabels.push(`<strong>${adviceInfo.name}</strong>（${adviceInfo.advice}）`);
+      }
+    }
+    if (worstLabels.length > 0) {
+      adviceHTML = `根據數據分析，您的整體動作非常棒！但若想挑戰更高分，可以特別調整以下部位：<br/>• ${worstLabels.join('<br/>• ')}`;
+    } else {
+      adviceHTML = '做得好！動作的整體完成度很高，下次嘗試挑戰更大的擺幅或更高強度的舞蹈影片吧！';
+    }
+  } else {
+    adviceHTML = '未收集到足夠的關節比對數據，請確保您的全身都完整進入鏡頭畫面中！';
+  }
+  
+  adviceTextEl.innerHTML = adviceHTML;
+
   finalGradeEl.textContent = grade;
   finalScoreEl.textContent = finalAverage.toFixed(1);
   summarySection.classList.remove('hidden');
@@ -569,6 +653,8 @@ function resetToUploadState() {
   isTestingState = false;
   isPlayingState = false;
   poseFeatures = [];
+  ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
+  jointAccumulators = {};
 
   testSection.classList.add('hidden');
   summarySection.classList.add('hidden');
