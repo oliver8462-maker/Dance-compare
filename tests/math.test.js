@@ -39,7 +39,7 @@ assert.ok(detailInfo.LEFT_ELBOW.refAngle !== undefined, 'refAngle should exist')
 assert.ok(detailInfo.LEFT_ELBOW.userAngle !== undefined, 'userAngle should exist');
 assert.ok(detailInfo.LEFT_ELBOW.diff > 0, 'diff should be positive');
 
-// 6. Test stricter divisor (2.8 instead of Math.PI)
+// 6. Test stricter divisor (2.9 instead of Math.PI)
 const p_ref1 = { x: 1, y: 0, visibility: 0.9 };
 const p_ref2 = { x: 0, y: 0, visibility: 0.9 };
 const p_ref3 = { x: 0, y: 1, visibility: 0.9 }; // 90 degrees = pi/2
@@ -57,8 +57,8 @@ mockLandmarksUserStricter[15] = p_user3;
 
 const detailsStricter = computeJointDetails(mockLandmarksRef, mockLandmarksUserStricter);
 const leftElbowSim = detailsStricter.LEFT_ELBOW.sim;
-const expectedSim = Math.max(0, 1 - (Math.PI / 2) / 2.8);
-assert.ok(Math.abs(leftElbowSim - expectedSim) < 1e-5, `LEFT_ELBOW similarity should be calibrated with 2.8 divisor, got ${leftElbowSim}, expected ${expectedSim}`);
+const expectedSim = Math.max(0, 1 - (Math.PI / 2) / 2.9);
+assert.ok(Math.abs(leftElbowSim - expectedSim) < 1e-5, `LEFT_ELBOW similarity should be calibrated with 2.9 divisor, got ${leftElbowSim}, expected ${expectedSim}`);
 assert.ok(leftElbowSim < 0.5, `Similarity should be strictly lower than 0.5 (which Math.PI divisor would yield), got ${leftElbowSim}`);
 
 console.log('All math tests passed successfully!');
