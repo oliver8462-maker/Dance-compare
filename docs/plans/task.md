@@ -34,5 +34,7 @@
 | Task 30: Implement Reference Video and Camera Screenshot Capturing | [x] | Build reference and webcam canvas base64 image capture logic during session mistakes |
 | Task 31: Design Side-by-Side UI Rendering and Styles | [x] | Update summary timeline HTML and style.css for side-by-side snapshot comparison layout |
 | Task 32: Calibrate Similarity to 2.9 Divisor | [x] | Update similarity divisor to 2.9 in math-utils.js and tests/math.test.js |
+| Task 33: Calibrate Similarity to 2.7 Divisor | [x] | Update similarity divisor to 2.7 in math-utils.js and tests/math.test.js |
+
 
 
