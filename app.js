@@ -19,18 +19,102 @@ let jointAccumulators = {}; // { JOINT_KEY: { sum: 0, count: 0 } }
 let sessionMistakes = []; // Array of { time, jointKey, userAngle, refAngle, diff }
 
 const JOINT_ADVICE = {
-  LEFT_ELBOW: { name: '左手肘', advice: '可以多注意左手臂彎曲的伸展度，讓動作更到位。' },
-  RIGHT_ELBOW: { name: '右手肘', advice: '可以多注意右手手臂的彎曲與伸展角度。' },
-  LEFT_SHOULDER: { name: '左肩膀', advice: '左側肩膀的擺幅或抬高高度可以再做大一些，讓動作更舒展。' },
-  RIGHT_SHOULDER: { name: '右肩膀', advice: '右側肩膀的開合或抬高高度可以再加強一些，增加表現力。' },
-  LEFT_KNEE: { name: '左膝蓋', advice: '左腳膝蓋的彎曲下蹲幅度可以再深一些，這能讓你的重心更穩。' },
-  RIGHT_KNEE: { name: '右膝蓋', advice: '右腳膝蓋的下蹲或伸直細節可以做得更確實，有助於高分。' },
-  LEFT_HIP: { name: '左髖部/臀部', advice: '左半邊身體的扭轉或骨盆重心擺放可以更穩定，保持姿態流暢。' },
-  RIGHT_HIP: { name: '右髖部/臀部', advice: '右半邊身體的扭轉或下盤重心維持可以更明確，提升動作美感。' },
-  LEFT_WRIST: { name: '左手腕', advice: '左手手掌或手腕的延伸角度可以再精準一點。' },
-  RIGHT_WRIST: { name: '右手腕', advice: '右手手掌或手腕的指引方向與擺放位置可以再精緻一些。' },
-  LEFT_ANKLE: { name: '左腳踝', advice: '左腳跨步的重心或步幅可以再精準確實一些。' },
-  RIGHT_ANKLE: { name: '右腳踝', advice: '右腳跨步的重心或步幅可以再精準確實一些。' }
+  LEFT_ELBOW: {
+    name: '左手肘',
+    advices: [
+      '可以多注意左手臂彎曲的伸展度，讓動作更到位。',
+      '左手肘的伸展幅度可再大一些，注意手臂線條的展開。',
+      '左手臂彎曲時角度要注意收放，避免動作顯得過於緊繃。'
+    ]
+  },
+  RIGHT_ELBOW: {
+    name: '右手肘',
+    advices: [
+      '可以多注意右手手臂的彎曲與伸展角度。',
+      '右手肘彎曲幅度可再深一些，讓右臂動作線條更完整。',
+      '右手肘的開合可以再確實一點，隨節奏舒展。'
+    ]
+  },
+  LEFT_SHOULDER: {
+    name: '左肩膀',
+    advices: [
+      '左側肩膀的擺幅或抬高高度可以再做大一些，讓動作更舒展。',
+      '左肩關節抬起的高度要更精確，注意雙肩要保持水平平衡。',
+      '左肩拉開的幅度要足夠，這能讓左半身姿態顯得更流暢。'
+    ]
+  },
+  RIGHT_SHOULDER: {
+    name: '右肩膀',
+    advices: [
+      '右側肩膀的開合或抬高高度可以再加強一些，增加表現力。',
+      '右肩可再向上抬高一些，避免右臂下垂導致姿態不夠延展。',
+      '右肩與右臂的協調度可以提升，擺動幅度再大一點點。'
+    ]
+  },
+  LEFT_KNEE: {
+    name: '左膝蓋',
+    advices: [
+      '左腳膝蓋的彎曲下蹲幅度可以再深一些，這能讓你的重心更穩。',
+      '左膝關節下蹲幅度不夠，建議在過渡動作時重心再壓低一點。',
+      '左膝蓋的屈伸節奏需與身體律動配合，角度可再收放些。'
+    ]
+  },
+  RIGHT_KNEE: {
+    name: '右膝蓋',
+    advices: [
+      '右腳膝蓋的下蹲或伸直細節可以做得更確實，有助於高分。',
+      '右膝彎曲幅度可加深，注意下蹲時保持身體平衡。',
+      '右膝蓋配合踏步時的曲折度要更有力，動作不用急促。'
+    ]
+  },
+  LEFT_HIP: {
+    name: '左髖部/臀部',
+    advices: [
+      '左半邊身體的扭轉或骨盆重心擺放可以更穩定，保持姿態流暢。',
+      '左側髖關節在轉動時的幅度不夠，重心可稍微左偏一些。',
+      '左髖骨處的扭動要更隨性流暢，有助於帶動全身的律動。'
+    ]
+  },
+  RIGHT_HIP: {
+    name: '右髖部/臀部',
+    advices: [
+      '右半邊身體的扭轉或下盤重心維持可以更明確，提升動作美感。',
+      '右側骨盆轉身幅度可以再加大一些，讓身形扭轉更具動感。',
+      '右髖部重心在下移時應更為沉穩，避免腰部動作顯得漂浮。'
+    ]
+  },
+  LEFT_WRIST: {
+    name: '左手腕',
+    advices: [
+      '左手手掌或手腕的延伸角度可以再精準一點。',
+      '左手腕的擺放方向有些偏離，注意手掌的微調。',
+      '左手掌伸展時手腕不要過度下垂，應向外延伸展平。'
+    ]
+  },
+  RIGHT_WRIST: {
+    name: '右手腕',
+    advices: [
+      '右手手掌或手腕的指引方向與擺放位置可以再精緻一些。',
+      '右手腕在細節上可以再往外展，配合小手臂的線條。',
+      '右手掌擺動時的腕部轉折可再確實一些。'
+    ]
+  },
+  LEFT_ANKLE: {
+    name: '左腳踝',
+    advices: [
+      '左腳跨步的重心或步幅可以再精準確實一些。',
+      '左腳踝著地時的方向與重心要再微調，站立角度可以再平穩些。',
+      '左腳踝配合腿部的傾斜度可再擴大，讓步伐顯得更有彈性。'
+    ]
+  },
+  RIGHT_ANKLE: {
+    name: '右腳踝',
+    advices: [
+      '右腳跨步的重心或步幅可以再精準確實一些。',
+      '右腳踝在點地或支撐時力道要更平均，腳踏動作角度要分明。',
+      '右腳踝著地角度要符合影片對齊，注意步距的開展程度。'
+    ]
+  }
 };
 
 // MediaPipe and Camera Variables
@@ -47,6 +131,34 @@ const smallCanvas = document.createElement('canvas');
 smallCanvas.width = 256;
 smallCanvas.height = 256;
 const smallCtx = smallCanvas.getContext('2d');
+
+// 擷取失誤比對畫面用的離屏畫布 (160x120)
+const captureCanvas = document.createElement('canvas');
+captureCanvas.width = 160;
+captureCanvas.height = 120;
+const captureCtx = captureCanvas.getContext('2d');
+
+function getReferenceFrameBase64() {
+  try {
+    captureCtx.clearRect(0, 0, 160, 120);
+    captureCtx.drawImage(referenceVideo, 0, 0, 160, 120);
+    return captureCanvas.toDataURL('image/jpeg', 0.6);
+  } catch (err) {
+    console.error("Failed to capture reference frame", err);
+    return '';
+  }
+}
+
+function getWebcamFrameBase64() {
+  try {
+    captureCtx.clearRect(0, 0, 160, 120);
+    captureCtx.drawImage(webcamCanvas, 0, 0, 160, 120);
+    return captureCanvas.toDataURL('image/jpeg', 0.6);
+  } catch (err) {
+    console.error("Failed to capture webcam frame", err);
+    return '';
+  }
+}
 
 // DOM Elements
 const headerStatus = document.getElementById('header-status');
@@ -415,12 +527,17 @@ function handleLiveWebcamResults(results) {
         const lastMistake = sessionMistakes.filter(m => m.jointKey === key).pop();
         // Throttle mistakes for the same joint to once every 2 seconds
         if (!lastMistake || (currentTime - lastMistake.time) >= 2.0) {
+          const refImg = getReferenceFrameBase64();
+          const userImg = getWebcamFrameBase64();
+          
           sessionMistakes.push({
             time: currentTime,
             jointKey: key,
             userAngle: details.userAngle,
             refAngle: details.refAngle,
-            diff: details.diff
+            diff: details.diff,
+            refImg: refImg,
+            userImg: userImg
           });
         }
       }
@@ -626,21 +743,38 @@ function endDanceSession() {
   const overallAvg = allScores.length > 0 ? (allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
 
   if (overallAvg >= 85 && lowestJoints.length > 0 && lowestJoints[0].avg >= 0.85) {
-    adviceHTML = '🌟 <strong>表現無懈可擊！</strong>您的所有動作配合得極為完美，各關節的角度拿捏非常精準，繼續保持！';
+    const perfectTexts = [
+      '🌟 <strong>表現無懈可擊！</strong>您的所有動作配合得極為完美，各關節的角度拿捏非常精準，繼續保持！',
+      '🌟 <strong>震撼全場的完美演出！</strong>每個關節的流暢度與角度都毫無瑕疵，簡直是專業舞者級別！',
+      '🌟 <strong>極致完美的舞姿！</strong>整體動作框架與配合度驚人地高，完全找不到任何需要改進的地方，太厲害了！'
+    ];
+    adviceHTML = perfectTexts[Math.floor(Math.random() * perfectTexts.length)];
   } else if (lowestJoints.length > 0) {
     const worstCount = Math.min(2, lowestJoints.length);
     const worstLabels = [];
     for (let i = 0; i < worstCount; i++) {
       const item = lowestJoints[i];
       const adviceInfo = JOINT_ADVICE[item.key];
-      if (adviceInfo) {
-        worstLabels.push(`<strong>${adviceInfo.name}</strong>（${adviceInfo.advice}）`);
+      if (adviceInfo && adviceInfo.advices && adviceInfo.advices.length > 0) {
+        const randomAdvice = adviceInfo.advices[Math.floor(Math.random() * adviceInfo.advices.length)];
+        worstLabels.push(`<strong>${adviceInfo.name}</strong>（${randomAdvice}）`);
       }
     }
     if (worstLabels.length > 0) {
-      adviceHTML = `根據數據分析，您的整體動作非常棒！但若想挑戰更高分，可以特別調整以下部位：<br/>• ${worstLabels.join('<br/>• ')}`;
+      const introTexts = [
+        `根據數據分析，您的整體動作非常棒！但若想挑戰更高分，可以特別調整以下部位：`,
+        `您已經掌握了這支舞蹈的精髓！如果能加強以下幾個關鍵關節，整體表現會更上層樓：`,
+        `您的節奏感很棒！以下是 AI 偵測到可再優化的身體部位細節，不妨微調看看：`
+      ];
+      const intro = introTexts[Math.floor(Math.random() * introTexts.length)];
+      adviceHTML = `${intro}<br/>• ${worstLabels.join('<br/>• ')}`;
     } else {
-      adviceHTML = '做得好！動作的整體完成度很高，下次嘗試挑戰更大的擺幅或更高強度的舞蹈影片吧！';
+      const positiveTexts = [
+        '做得好！動作的整體完成度很高，下次嘗試挑戰更大的擺幅或更高強度的舞蹈影片吧！',
+        '非常精彩！身體各部位都做得很到位，下一輪可以挑戰更快的節奏！',
+        '表現不俗！肢體舒展程度適中，繼續練習相信很快就能突破自我極限！'
+      ];
+      adviceHTML = positiveTexts[Math.floor(Math.random() * positiveTexts.length)];
     }
   } else {
     adviceHTML = '未收集到足夠的關節比對數據，請確保您的全身都完整進入鏡頭畫面中！';
@@ -656,14 +790,36 @@ function endDanceSession() {
 
   if (worstMistakes.length > 0) {
     mistakesTimelineEl.classList.remove('hidden');
-    let html = '<div class="advice-header">⚠️ 關鍵失誤時間點與動作</div>';
+    let html = '<div class="advice-header">⚠️ 關鍵失誤時間點與動作對照</div>';
     html += worstMistakes.map(m => {
       const timeStr = `${Math.floor(m.time / 60).toString().padStart(2, '0')}:${Math.floor(m.time % 60).toString().padStart(2, '0')}`;
       const label = getDetailedMistakeLabel(m.jointKey, m.userAngle, m.refAngle);
-      return `<div class="mistake-item">
-                <span class="mistake-time">${timeStr}</span>
-                <span class="mistake-desc">${label}</span>
-              </div>`;
+      
+      let imgComparisonHTML = '';
+      if (m.refImg && m.userImg) {
+        imgComparisonHTML = `
+          <div class="mistake-comparison">
+            <div class="comparison-img-wrapper">
+              <img src="${m.refImg}" class="comparison-img ref-frame" alt="參考動作" />
+              <span class="comparison-label">參考動作</span>
+            </div>
+            <div class="comparison-img-wrapper">
+              <img src="${m.userImg}" class="comparison-img user-frame" alt="您的動作" />
+              <span class="comparison-label">您的動作</span>
+            </div>
+          </div>
+        `;
+      }
+      
+      return `
+        <div class="mistake-card-item">
+          <div class="mistake-header-line">
+            <span class="mistake-time">${timeStr}</span>
+            <span class="mistake-desc">${label}</span>
+          </div>
+          ${imgComparisonHTML}
+        </div>
+      `;
     }).join('');
     mistakesTimelineEl.innerHTML = html;
   } else {

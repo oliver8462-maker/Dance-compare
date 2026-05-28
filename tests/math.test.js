@@ -39,4 +39,27 @@ assert.ok(detailInfo.LEFT_ELBOW.refAngle !== undefined, 'refAngle should exist')
 assert.ok(detailInfo.LEFT_ELBOW.userAngle !== undefined, 'userAngle should exist');
 assert.ok(detailInfo.LEFT_ELBOW.diff > 0, 'diff should be positive');
 
+// 6. Test stricter divisor (2.8 instead of Math.PI)
+const p_ref1 = { x: 1, y: 0, visibility: 0.9 };
+const p_ref2 = { x: 0, y: 0, visibility: 0.9 };
+const p_ref3 = { x: 0, y: 1, visibility: 0.9 }; // 90 degrees = pi/2
+const p_user3 = { x: 1, y: 0, visibility: 0.9 }; // 0 degrees
+
+const mockLandmarksRef = Array(33).fill(null).map(() => ({ x: 0, y: 0, visibility: 0.9 }));
+mockLandmarksRef[11] = p_ref1;
+mockLandmarksRef[13] = p_ref2;
+mockLandmarksRef[15] = p_ref3; // LEFT_ELBOW: points [11, 13, 15]
+
+const mockLandmarksUserStricter = Array(33).fill(null).map(() => ({ x: 0, y: 0, visibility: 0.9 }));
+mockLandmarksUserStricter[11] = p_ref1;
+mockLandmarksUserStricter[13] = p_ref2;
+mockLandmarksUserStricter[15] = p_user3;
+
+const detailsStricter = computeJointDetails(mockLandmarksRef, mockLandmarksUserStricter);
+const leftElbowSim = detailsStricter.LEFT_ELBOW.sim;
+const expectedSim = Math.max(0, 1 - (Math.PI / 2) / 2.8);
+assert.ok(Math.abs(leftElbowSim - expectedSim) < 1e-5, `LEFT_ELBOW similarity should be calibrated with 2.8 divisor, got ${leftElbowSim}, expected ${expectedSim}`);
+assert.ok(leftElbowSim < 0.5, `Similarity should be strictly lower than 0.5 (which Math.PI divisor would yield), got ${leftElbowSim}`);
+
 console.log('All math tests passed successfully!');
+

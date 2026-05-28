@@ -54,8 +54,8 @@ export function computeJointSimilarity(refLandmarks, userLandmarks, minVisibilit
       const refAngle = getAngle(refP1, refP2, refP3);
       const userAngle = getAngle(userP1, userP2, userP3);
       const diff = Math.abs(refAngle - userAngle);
-      // 極寬鬆夾角扣分：除以 Math.PI，最大容許誤差為 180 度
-      const sim = Math.max(0, 1 - (diff / Math.PI));
+      // 極寬鬆夾角扣分：除以 2.8（由 Math.PI 縮小以變嚴格），最大容許誤差為 160.4 度
+      const sim = Math.max(0, 1 - (diff / 2.8));
       totalSim += sim;
       validCount++;
     }
@@ -101,7 +101,7 @@ export function computeJointSimilarities(refLandmarks, userLandmarks, minVisibil
       const userAngle = getAngle(userP1, userP2, userP3);
       const diff = Math.abs(refAngle - userAngle);
       // Joint similarity mapping matching main similarity calculation
-      const sim = Math.max(0, 1 - (diff / Math.PI));
+      const sim = Math.max(0, 1 - (diff / 2.8));
       details[key] = sim;
     }
   }
@@ -129,7 +129,7 @@ export function computeJointDetails(refLandmarks, userLandmarks, minVisibility =
       const refAngle = getAngle(refP1, refP2, refP3);
       const userAngle = getAngle(userP1, userP2, userP3);
       const diff = Math.abs(refAngle - userAngle);
-      const sim = Math.max(0, 1 - (diff / Math.PI));
+      const sim = Math.max(0, 1 - (diff / 2.8));
       details[key] = { sim, refAngle, userAngle, diff };
     }
   }

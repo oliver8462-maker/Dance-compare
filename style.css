@@ -891,17 +891,24 @@ body {
   padding-top: 10px;
 }
 
-.mistake-item {
+.mistake-card-item {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.mistake-card-item:last-child {
+  margin-bottom: 0;
+}
+
+.mistake-header-line {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  margin-bottom: 8px;
-  font-size: 0.8rem;
-  color: rgba(248, 250, 252, 0.8);
-}
-
-.mistake-item:last-child {
-  margin-bottom: 0;
+  margin-bottom: 10px;
 }
 
 .mistake-time {
@@ -909,7 +916,7 @@ body {
   background: rgba(239, 68, 68, 0.12);
   border: 1px solid rgba(239, 68, 68, 0.25);
   color: #f87171;
-  padding: 1px 6px;
+  padding: 2px 6px;
   border-radius: 4px;
   font-weight: 700;
   font-size: 0.72rem;
@@ -917,7 +924,54 @@ body {
 }
 
 .mistake-desc {
-  line-height: 1.4;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: rgba(248, 250, 252, 0.9);
+  font-weight: 500;
 }
+
+/* Side-by-side image comparison */
+.mistake-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.comparison-img-wrapper {
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  aspect-ratio: 4 / 3;
+  background: #000;
+}
+
+.comparison-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* Mirror the user frame so it matches user's perspective, matching main canvas */
+.comparison-img.user-frame {
+  transform: scaleX(-1);
+}
+
+.comparison-label {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
 
 

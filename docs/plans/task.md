@@ -29,4 +29,8 @@
 | Task 25: Integrate Rating Counters & AI Feedback Generator in app.js | [x] | Track segment ratings and visible joint scores, generate advice |
 | Task 26: Final Verification & Walkthrough of Feedback Feature | [x] | Run tests, verify integrated game flow, write walkthrough |
 | Task 27: Implement detailed angle descriptions and MM:SS timeline of mistakes | [x] | Track time-stamped mistakes, format MM:SS timestamps, and translate angle errors (too large/too small) |
+| Task 28: Calibrate Similarity to 2.8 Strictness and Update Unit Tests | [x] | Update math-utils.js similarity divisor to 2.8 and verify unit tests |
+| Task 29: Implement Dynamic Non-Repetitive AI Advice and Feedback Templates | [x] | Expand joint advice text and randomize feedback templates |
+| Task 30: Implement Reference Video and Camera Screenshot Capturing | [x] | Build reference and webcam canvas base64 image capture logic during session mistakes |
+| Task 31: Design Side-by-Side UI Rendering and Styles | [x] | Update summary timeline HTML and style.css for side-by-side snapshot comparison layout |
 
