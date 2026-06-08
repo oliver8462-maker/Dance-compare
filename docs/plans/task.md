@@ -80,3 +80,4 @@
 | Task 74: Execution - Style Boot Overlay | [x] | Add boot-overlay styles to style.css |
 | Task 75: Execution - Implement Boot & Sync Logic | [x] | Modify app.js to handle Promises and IndexedDB syncing |
 | Task 76: Execution - Verification | [x] | Verify the unified boot and persistence locally |
+| Task 77: Upload Code to GitHub | [x] | Push local changes to GitHub repository main branch while preserving commit history |
