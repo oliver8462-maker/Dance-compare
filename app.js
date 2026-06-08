@@ -1,11 +1,40 @@
 // Main application logic - Dance Similarity Scoring Software
 import { computeJointSimilarity, scaleScore, computeJointSimilarities, computeJointDetails } from './math-utils.js';
 
+// Firebase SDK (v10 compat via CDN ES modules)
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+// Firebase Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyAPfEISg12wCGHG4tSr_i9h7UknfJvc62I",
+  authDomain: "dance-b4610.firebaseapp.com",
+  projectId: "dance-b4610",
+  storageBucket: "dance-b4610.firebasestorage.app",
+  messagingSenderId: "1012685266500",
+  appId: "1:1012685266500:web:54c1e22fdf57c26ab32611",
+  measurementId: "G-SY7762V3W8"
+};
+
+const firebaseApp = initializeApp(firebaseConfig);
+const auth = getAuth(firebaseApp);
+const db = getFirestore(firebaseApp);
+
 // Application State Variables
 let poseFeatures = []; // Preprocessed reference pose landmarks sequence
 let isPreprocessing = false;
 let isTestingState = false;
 let isPlayingState = false;
+
+// Video Library State
+let uploadedVideos = []; // Store items: { id, name, file, url, poseFeatures }
+let activeVideoId = null;
+
+// Auth State
+let currentUser = null; // Firebase user object or null
+let isGuest = false;
+let isSignUpMode = false; // Toggle between login/signup form
 
 // Real-time Scoring Variables
 let frameScores = []; // Scores in the current 1.5-second interval
@@ -17,6 +46,16 @@ let timelineIntervalId = null;
 let ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
 let jointAccumulators = {}; // { JOINT_KEY: { sum: 0, count: 0 } }
 let sessionMistakes = []; // Array of { time, jointKey, userAngle, refAngle, diff }
+
+// Data Persistence Helper
+async function saveStateToIndexedDB() {
+  try {
+    await idbKeyval.set('uploadedVideos', uploadedVideos);
+    await idbKeyval.set('activeVideoId', activeVideoId);
+  } catch (err) {
+    console.error('Failed to save state to IndexedDB:', err);
+  }
+}
 
 const JOINT_ADVICE = {
   LEFT_ELBOW: {
@@ -172,6 +211,26 @@ const preprocessProgressBar = document.getElementById('preprocess-progress-bar')
 const startControl = document.getElementById('start-control');
 const startTestBtn = document.getElementById('start-test-btn');
 
+const videoLibraryContainer = document.getElementById('video-library-container');
+const videoLibraryList = document.getElementById('video-library-list');
+const leaderboardContainer = document.getElementById('leaderboard-container');
+const leaderboardList = document.getElementById('leaderboard-list');
+
+// Auth DOM Elements
+const authOverlay = document.getElementById('auth-overlay');
+const authForm = document.getElementById('auth-form');
+const authEmailInput = document.getElementById('auth-email');
+const authPasswordInput = document.getElementById('auth-password');
+const authSubmitBtn = document.getElementById('auth-submit-btn');
+const authError = document.getElementById('auth-error');
+const authToggleLink = document.getElementById('auth-toggle-link');
+const authToggleMsg = document.getElementById('auth-toggle-msg');
+const guestBtn = document.getElementById('guest-btn');
+const authUserInfo = document.getElementById('auth-user-info');
+const authUserLabel = document.getElementById('auth-user-label');
+const authActionBtn = document.getElementById('auth-action-btn');
+const summaryScoreUploadStatus = document.getElementById('summary-score-upload-status');
+
 const testSection = document.getElementById('test-section');
 const webcamVideo = document.getElementById('webcam-video');
 const webcamCanvas = document.getElementById('webcam-canvas');
@@ -228,9 +287,63 @@ function initPoseModel() {
 }
 
 // Initialize on load
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
   initPoseModel();
   setupEventListeners();
+  setupAuthListeners();
+
+  const bootOverlay = document.getElementById('boot-overlay');
+  
+  // Promise for Firebase Auth resolution
+  const authPromise = new Promise((resolve) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        currentUser = user;
+        isGuest = false;
+      }
+      updateAuthUI();
+      unsubscribe(); // Only listen once for boot
+      resolve();
+    });
+    // 1.5s timeout safety net
+    setTimeout(resolve, 1500); 
+  });
+
+  // Promise for IndexedDB load
+  const dbPromise = (async () => {
+    try {
+      const savedVideos = await idbKeyval.get('uploadedVideos');
+      const savedActiveId = await idbKeyval.get('activeVideoId');
+      if (savedVideos && savedVideos.length > 0) {
+        uploadedVideos = savedVideos.map(v => ({
+          ...v,
+          url: URL.createObjectURL(v.file) // Re-create Blob URL from persisted File
+        }));
+      }
+      if (savedActiveId) {
+        activeVideoId = savedActiveId;
+      }
+    } catch(err) {
+      console.error('Error loading from IndexedDB', err);
+    }
+  })();
+
+  // Await both parallel tasks
+  await Promise.all([authPromise, dbPromise]);
+
+  // Restore state logic
+  if (uploadedVideos.length > 0) {
+    updateVideoLibraryUI();
+    if (activeVideoId) {
+      window.switchActiveVideo(activeVideoId);
+    }
+  }
+
+  // Remove overlay
+  if (bootOverlay) {
+    bootOverlay.classList.add('hidden');
+    setTimeout(() => bootOverlay.remove(), 500);
+  }
 });
 
 // --- 2. Event Listeners Setup ---
@@ -286,8 +399,8 @@ async function handleVideoUpload(file) {
   startControl.classList.add('hidden');
   preprocessContainer.classList.remove('hidden');
   
-  // Hide dropzone interior styling
-  document.querySelector('.dropzone-content').classList.add('hidden');
+  // Compact dropzone while processing
+  document.getElementById('dropzone').classList.add('compact');
 
   const videoURL = URL.createObjectURL(file);
   
@@ -361,6 +474,18 @@ async function handleVideoUpload(file) {
   isPreprocessing = false;
   onResultsCallback = null;
   
+  // Store processed video and features
+  const newVideoId = 'vid_' + Date.now();
+  const newVideo = {
+    id: newVideoId,
+    name: file.name,
+    file: file,
+    url: videoURL,
+    poseFeatures: [...poseFeatures]
+  };
+  uploadedVideos.push(newVideo);
+  activeVideoId = newVideoId;
+  
   preprocessStatusText.textContent = `骨架分析完成！總長 ${duration.toFixed(1)} 秒，已擷取 ${poseFeatures.length} 個關鍵特徵。`;
   preprocessPercentage.textContent = "100%";
   preprocessProgressBar.style.width = "100%";
@@ -368,6 +493,12 @@ async function handleVideoUpload(file) {
   startControl.classList.remove('hidden');
   headerStatus.textContent = "準備完畢，可以開始測試";
   headerStatus.style.color = "var(--color-good)";
+  
+  if (typeof updateVideoLibraryUI === 'function') {
+    updateVideoLibraryUI();
+  }
+  refreshLeaderboard();
+  saveStateToIndexedDB();
 }
 
 // --- 4. Webcam & Countdown Logic (Task 5) ---
@@ -830,6 +961,9 @@ function endDanceSession() {
   finalGradeEl.textContent = grade;
   finalScoreEl.textContent = finalAverage.toFixed(1);
   summarySection.classList.remove('hidden');
+
+  // Submit score to Firestore for logged-in users
+  handleScoreSubmission(finalAverage, grade);
 }
 
 /**
@@ -891,10 +1025,357 @@ function resetToUploadState() {
   preprocessContainer.classList.add('hidden');
   startControl.classList.add('hidden');
   
-  // Reveal dropzone interior styling
-  document.querySelector('.dropzone-content').classList.remove('hidden');
+  // Remove compact dropzone state
+  document.getElementById('dropzone').classList.remove('compact');
   videoInput.value = '';
   
   headerStatus.textContent = "準備就緒";
   headerStatus.style.color = "var(--text-muted)";
+  
+  if (typeof updateVideoLibraryUI === 'function') {
+    updateVideoLibraryUI();
+  }
+}
+
+// --- Video Library Actions ---
+function updateVideoLibraryUI() {
+  if (uploadedVideos.length === 0) {
+    videoLibraryContainer.classList.add('hidden');
+    videoLibraryList.innerHTML = '';
+    return;
+  }
+
+  videoLibraryContainer.classList.remove('hidden');
+  videoLibraryList.innerHTML = uploadedVideos.map(video => {
+    const isActive = video.id === activeVideoId;
+    return `
+      <div class="library-item ${isActive ? 'active' : ''}" onclick="window.switchActiveVideo('${video.id}')">
+        <div class="item-info">
+          <span class="item-icon">🎥</span>
+          <span class="item-name" title="${video.name}">${video.name}</span>
+          ${isActive ? '<span class="item-badge">使用中</span>' : ''}
+        </div>
+        <div class="item-actions">
+          <button class="btn-delete-item" onclick="window.deleteVideo('${video.id}', event)" title="刪除影片">
+            🗑️
+          </button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// Expose functions to window scope for onclick attributes
+window.switchActiveVideo = function(videoId) {
+  const video = uploadedVideos.find(v => v.id === videoId);
+  if (!video) return;
+
+  activeVideoId = video.id;
+  poseFeatures = video.poseFeatures;
+  
+  // Point elements to the cached URL
+  referenceVideo.src = video.url;
+  referenceVideo.load();
+  tempVideo.src = video.url;
+  tempVideo.load();
+
+  // Reset progress and bypass preprocessing state
+  document.getElementById('dropzone').classList.add('compact');
+  preprocessContainer.classList.add('hidden');
+  startControl.classList.remove('hidden');
+  
+  preprocessStatusText.textContent = `骨架分析完成！已讀取緩存的 ${poseFeatures.length} 個關鍵特徵。`;
+  preprocessPercentage.textContent = "100%";
+  preprocessProgressBar.style.width = "100%";
+  headerStatus.textContent = "準備完畢，可以開始測試";
+  headerStatus.style.color = "var(--color-good)";
+
+  updateVideoLibraryUI();
+  refreshLeaderboard();
+  saveStateToIndexedDB();
+};
+
+window.deleteVideo = function(videoId, event) {
+  if (event) event.stopPropagation();
+  
+  const videoIndex = uploadedVideos.findIndex(v => v.id === videoId);
+  if (videoIndex === -1) return;
+
+  const targetVideo = uploadedVideos[videoIndex];
+  
+  // Free blob URL memory
+  if (targetVideo.url) {
+    URL.revokeObjectURL(targetVideo.url);
+  }
+  
+  // Remove from state array
+  uploadedVideos.splice(videoIndex, 1);
+
+  if (activeVideoId === videoId) {
+    if (uploadedVideos.length > 0) {
+      // Auto switch to the first video
+      window.switchActiveVideo(uploadedVideos[0].id);
+    } else {
+      // Library is empty, revert to upload view
+      activeVideoId = null;
+      resetToUploadState();
+    }
+  } else {
+    updateVideoLibraryUI();
+  }
+  saveStateToIndexedDB();
+};
+
+// --- 8. Firebase Auth & Firestore Logic ---
+
+function setupAuthListeners() {
+  // Monitor Firebase auth state
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      currentUser = user;
+      isGuest = false;
+      updateAuthUI();
+    }
+    // If no user and not guest, keep overlay visible (default state)
+  });
+
+  // Google Sign-In
+  const googleLoginBtn = document.getElementById('google-login-btn');
+  if (googleLoginBtn) {
+    googleLoginBtn.addEventListener('click', async () => {
+      const provider = new GoogleAuthProvider();
+      try {
+        hideAuthError();
+        googleLoginBtn.disabled = true;
+        const originalText = googleLoginBtn.innerHTML;
+        googleLoginBtn.textContent = '登入中...';
+        
+        await signInWithPopup(auth, provider);
+        
+        authOverlay.classList.add('hidden');
+      } catch (error) {
+        showAuthError(getFirebaseErrorMessage(error.code));
+      } finally {
+        googleLoginBtn.disabled = false;
+        // Restore button html
+        googleLoginBtn.innerHTML = `
+          <svg class="google-icon" viewBox="0 0 24 24" width="18" height="18">
+            <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.54 14.98 1 12 1 7.35 1 3.37 3.67 1.39 7.56l3.85 2.99c.9-2.7 3.4-4.51 6.76-4.51z"/>
+            <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.34H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v2.98h3.85c2.25-2.07 3.58-5.13 3.58-8.73z"/>
+            <path fill="#FBBC05" d="M5.24 10.55c-.23-.69-.36-1.43-.36-2.2s.13-1.51.36-2.2L1.39 3.16C.5 4.93 0 6.9 0 9s.5 4.07 1.39 5.84l3.85-2.99.01.7z"/>
+            <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.92l-3.85-2.98c-1.1.74-2.5 1.18-4.11 1.18-3.36 0-5.86-1.81-6.76-4.51L1.39 14.7C3.37 18.59 7.35 21 12 23z"/>
+          </svg>
+          使用 Google 帳號登入
+        `;
+      }
+    });
+  }
+
+  // Login / Signup form submit
+  authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = authEmailInput.value.trim();
+    const password = authPasswordInput.value;
+
+    if (!email || !password) return;
+
+    authSubmitBtn.disabled = true;
+    authSubmitBtn.textContent = isSignUpMode ? '註冊中...' : '登入中...';
+    hideAuthError();
+
+    try {
+      if (isSignUpMode) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+      // onAuthStateChanged will fire and handle UI
+      authOverlay.classList.add('hidden');
+    } catch (error) {
+      showAuthError(getFirebaseErrorMessage(error.code));
+    } finally {
+      authSubmitBtn.disabled = false;
+      authSubmitBtn.textContent = isSignUpMode ? '註冊並登入' : '登入';
+    }
+  });
+
+  // Toggle login / signup mode
+  authToggleLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    isSignUpMode = !isSignUpMode;
+    authToggleMsg.textContent = isSignUpMode ? '已有帳號？' : '還沒有帳號？';
+    authToggleLink.textContent = isSignUpMode ? '返回登入' : '點此註冊';
+    authSubmitBtn.textContent = isSignUpMode ? '註冊並登入' : '登入';
+    hideAuthError();
+  });
+
+  // Guest mode button
+  guestBtn.addEventListener('click', () => {
+    isGuest = true;
+    currentUser = null;
+    authOverlay.classList.add('hidden');
+    updateAuthUI();
+  });
+
+  // Header action button (login/signup or logout)
+  authActionBtn.addEventListener('click', () => {
+    if (currentUser) {
+      // Logout
+      signOut(auth).then(() => {
+        currentUser = null;
+        isGuest = true;
+        updateAuthUI();
+      });
+    } else {
+      // Show auth overlay for login/signup
+      authOverlay.classList.remove('hidden');
+    }
+  });
+}
+
+function updateAuthUI() {
+  authUserInfo.classList.remove('hidden');
+  if (currentUser) {
+    authUserLabel.textContent = `👤 ${currentUser.email}`;
+    authActionBtn.textContent = '登出';
+  } else if (isGuest) {
+    authUserLabel.textContent = '👤 訪客模式 (Guest)';
+    authActionBtn.textContent = '登入 / 註冊';
+  }
+}
+
+function showAuthError(message) {
+  authError.textContent = message;
+  authError.classList.remove('hidden');
+}
+
+function hideAuthError() {
+  authError.classList.add('hidden');
+  authError.textContent = '';
+}
+
+function getFirebaseErrorMessage(code) {
+  const messages = {
+    'auth/email-already-in-use': '此電子郵件已被註冊。',
+    'auth/invalid-email': '請輸入有效的電子郵件地址。',
+    'auth/weak-password': '密碼強度不足，請至少輸入 6 個字元。',
+    'auth/user-not-found': '找不到此帳號，請先註冊。',
+    'auth/wrong-password': '密碼錯誤，請重新輸入。',
+    'auth/invalid-credential': '登入資訊無效，請檢查帳號與密碼。',
+    'auth/too-many-requests': '登入嘗試次數過多，請稍後再試。',
+    'auth/network-request-failed': '網路連線錯誤，請檢查您的網路。'
+  };
+  return messages[code] || `認證錯誤 (${code})`;
+}
+
+// Mask email for leaderboard display: "te***@gmail.com"
+function maskEmail(email) {
+  if (!email) return '???';
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) return `${local}***@${domain}`;
+  return `${local.substring(0, 2)}***@${domain}`;
+}
+
+// Submit score to Firestore after dance session
+async function handleScoreSubmission(score, grade) {
+  if (!currentUser) {
+    // Guest mode: show suggestion
+    summaryScoreUploadStatus.className = 'summary-score-upload-status guest';
+    summaryScoreUploadStatus.innerHTML = '💡 登入帳號即可儲存歷程並加入排行榜！ <a href="#" id="summary-login-link" style="color: var(--primary); font-weight: 600;">立即登入</a>';
+    summaryScoreUploadStatus.classList.remove('hidden');
+
+    // Attach click handler for inline login link
+    const loginLink = document.getElementById('summary-login-link');
+    if (loginLink) {
+      loginLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        authOverlay.classList.remove('hidden');
+      });
+    }
+    return;
+  }
+
+  // Get the active video name for leaderboard grouping
+  const activeVideo = uploadedVideos.find(v => v.id === activeVideoId);
+  const videoName = activeVideo ? activeVideo.name : 'unknown';
+
+  try {
+    await addDoc(collection(db, 'scores'), {
+      userId: currentUser.uid,
+      email: currentUser.email,
+      videoName: videoName,
+      score: parseFloat(score.toFixed(1)),
+      grade: grade,
+      timestamp: serverTimestamp()
+    });
+
+    summaryScoreUploadStatus.className = 'summary-score-upload-status success';
+    summaryScoreUploadStatus.textContent = '✓ 分數已成功上傳排行榜！';
+    summaryScoreUploadStatus.classList.remove('hidden');
+  } catch (error) {
+    console.error('Failed to submit score to Firestore:', error);
+    summaryScoreUploadStatus.className = 'summary-score-upload-status guest';
+    summaryScoreUploadStatus.textContent = '⚠ 分數上傳失敗，請檢查網路連線。';
+    summaryScoreUploadStatus.classList.remove('hidden');
+  }
+}
+
+// Refresh leaderboard for the current active video
+async function refreshLeaderboard() {
+  const activeVideo = uploadedVideos.find(v => v.id === activeVideoId);
+  if (!activeVideo) {
+    leaderboardContainer.classList.add('hidden');
+    return;
+  }
+
+  const videoName = activeVideo.name;
+  leaderboardContainer.classList.remove('hidden');
+
+  // Update leaderboard title with video name
+  const leaderboardVideoTitle = document.getElementById('leaderboard-video-title');
+  if (leaderboardVideoTitle) {
+    leaderboardVideoTitle.textContent = `「 ${videoName} 」`;
+  }
+
+  try {
+    const scoresQuery = query(
+      collection(db, 'scores'),
+      where('videoName', '==', videoName),
+      orderBy('score', 'desc'),
+      limit(5)
+    );
+
+    const snapshot = await getDocs(scoresQuery);
+
+    if (snapshot.empty) {
+      leaderboardList.innerHTML = '<p class="leaderboard-empty">尚無挑戰紀錄，快來搶下第一名！</p>';
+      return;
+    }
+
+    let html = '';
+    let rank = 1;
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const isSelf = currentUser && data.userId === currentUser.uid;
+      const rankClass = rank <= 3 ? `rank-${rank}` : '';
+      const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+      const dateStr = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleDateString('zh-TW') : '';
+
+      html += `
+        <div class="leaderboard-row ${isSelf ? 'self-row' : ''}">
+          <span class="leaderboard-rank ${rankClass}">${rankEmoji}</span>
+          <span class="leaderboard-email">${maskEmail(data.email)}${isSelf ? ' (你)' : ''}</span>
+          <span class="leaderboard-score">${data.score}</span>
+          <span class="leaderboard-grade">${data.grade}</span>
+          <span class="leaderboard-date">${dateStr}</span>
+        </div>
+      `;
+      rank++;
+    });
+
+    leaderboardList.innerHTML = html;
+  } catch (error) {
+    console.error('Failed to fetch leaderboard:', error);
+    leaderboardList.innerHTML = '<p class="leaderboard-empty">排行榜載入失敗，請稍後再試。</p>';
+  }
 }

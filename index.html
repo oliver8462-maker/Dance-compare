@@ -15,16 +15,74 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+    <!-- idb-keyval CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/idb-keyval@6/dist/umd.js"></script>
 </head>
 <body>
+    <!-- 系統啟動遮罩 (Boot Overlay) -->
+    <div id="boot-overlay" class="boot-overlay">
+        <div class="boot-spinner"></div>
+        <p>系統載入中...</p>
+    </div>
+
     <div id="app">
+        <!-- 登入/註冊 全螢幕遮罩 -->
+        <div id="auth-overlay" class="auth-overlay">
+            <div class="auth-card">
+                <div class="auth-logo">💃</div>
+                <h2 class="auth-title">DanceAI <span>Pose Scorer</span></h2>
+                <p class="auth-subtitle">登入帳號以儲存歷程並加入排行榜</p>
+
+                <div id="auth-error" class="auth-error hidden"></div>
+
+                <form id="auth-form" class="auth-form" autocomplete="off">
+                    <div class="auth-input-group">
+                        <label for="auth-email">電子郵件</label>
+                        <input type="email" id="auth-email" placeholder="your@email.com" required />
+                    </div>
+                    <div class="auth-input-group">
+                        <label for="auth-password">密碼</label>
+                        <input type="password" id="auth-password" placeholder="至少 6 個字元" required minlength="6" />
+                    </div>
+                    <button type="submit" id="auth-submit-btn" class="btn btn-primary btn-large auth-submit-btn">登入</button>
+                </form>
+
+                <p class="auth-toggle-text">
+                    <span id="auth-toggle-msg">還沒有帳號？</span>
+                    <a href="#" id="auth-toggle-link">點此註冊</a>
+                </p>
+
+                <button id="google-login-btn" class="btn btn-google">
+                    <svg class="google-icon" viewBox="0 0 24 24" width="18" height="18">
+                        <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.54 14.98 1 12 1 7.35 1 3.37 3.67 1.39 7.56l3.85 2.99c.9-2.7 3.4-4.51 6.76-4.51z"/>
+                        <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.34H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v2.98h3.85c2.25-2.07 3.58-5.13 3.58-8.73z"/>
+                        <path fill="#FBBC05" d="M5.24 10.55c-.23-.69-.36-1.43-.36-2.2s.13-1.51.36-2.2L1.39 3.16C.5 4.93 0 6.9 0 9s.5 4.07 1.39 5.84l3.85-2.99.01.7z"/>
+                        <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.92l-3.85-2.98c-1.1.74-2.5 1.18-4.11 1.18-3.36 0-5.86-1.81-6.76-4.51L1.39 14.7C3.37 18.59 7.35 21 12 23z"/>
+                    </svg>
+                    使用 Google 帳號登入
+                </button>
+
+                <div class="auth-divider">
+                    <span>或</span>
+                </div>
+
+                <button id="guest-btn" class="btn btn-secondary auth-guest-btn">以訪客身份直接體驗 ➔</button>
+            </div>
+        </div>
+
         <!-- 頂部導覽列 -->
         <header class="app-header">
             <div class="logo">
                 <span class="logo-icon">💃</span>
                 <h1>DanceAI <span>Pose Scorer</span></h1>
             </div>
-            <div id="header-status" class="header-status">準備就緒</div>
+            <div class="header-right">
+                <div id="auth-user-info" class="auth-user-info hidden">
+                    <span id="auth-user-label" class="auth-user-label">👤 訪客模式 (Guest)</span>
+                    <button id="auth-action-btn" class="btn-auth-action">登入 / 註冊</button>
+                </div>
+                <div id="header-status" class="header-status">準備就緒</div>
+            </div>
         </header>
 
         <main class="app-content">
@@ -50,6 +108,22 @@
                         <div id="preprocess-progress-bar" class="progress-bar-fill"></div>
                     </div>
                     <p class="progress-detail-text">系統正在後台提取人體骨架特徵 (Pose Landmarks)，測試進行時將不需要網路運算。</p>
+                </div>
+
+                <!-- 新增：已分析影片庫 (Video Library) -->
+                <div id="video-library-container" class="video-library-container hidden">
+                    <h4 class="library-title">🎥 已分析影片庫 (Video Library)</h4>
+                    <div id="video-library-list" class="video-library-list">
+                        <!-- 動態生成影片項目 -->
+                    </div>
+                </div>
+
+                <!-- 排行榜 (Leaderboard) -->
+                <div id="leaderboard-container" class="leaderboard-container hidden">
+                    <h4 class="leaderboard-title">🏆 本片高手排行榜 <span id="leaderboard-video-title" class="video-title-context"></span></h4>
+                    <div id="leaderboard-list" class="leaderboard-list">
+                        <p class="leaderboard-empty">尚無挑戰紀錄，快來搶下第一名！</p>
+                    </div>
                 </div>
 
                 <!-- 開始按鈕 -->
@@ -150,6 +224,8 @@
                         <p id="advice-text" class="advice-text">正在分析您的動作習慣...</p>
                         <div id="mistakes-timeline" class="mistakes-timeline"></div>
                     </div>
+
+                    <div id="summary-score-upload-status" class="summary-score-upload-status hidden"></div>
 
                     <div class="summary-actions">
                         <button id="retry-btn" class="btn btn-secondary">重新測試</button>

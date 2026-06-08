@@ -35,6 +35,48 @@
 | Task 31: Design Side-by-Side UI Rendering and Styles | [x] | Update summary timeline HTML and style.css for side-by-side snapshot comparison layout |
 | Task 32: Calibrate Similarity to 2.9 Divisor | [x] | Update similarity divisor to 2.9 in math-utils.js and tests/math.test.js |
 | Task 33: Calibrate Similarity to 2.7 Divisor | [x] | Update similarity divisor to 2.7 in math-utils.js and tests/math.test.js |
-
-
-
+| Task 34: Brainstorming - Explore Project Context | [x] | Inspected index.html, app.js, and style.css |
+| Task 35: Brainstorming - Ask Clarifying Questions | [x] | Ask user clarifying questions on UI/UX placement for the video library and switching behavior |
+| Task 36: Brainstorming - Propose 2-3 Approaches | [x] | Formulate and propose video management architectures and UI options |
+| Task 37: Brainstorming - Present Design | [x] | Present component structure, state management, and HTML/CSS structure |
+| Task 38: Brainstorming - Write Design Doc | [x] | Document final design details in YYYY-MM-DD-video-library-design.md |
+| Task 39: Write Implementation Plan | [x] | Create detailed implementation plan in implementation_plan.md |
+| Task 40: Implement Video Library - Add HTML Structure | [x] | Update index.html to add video-library-container |
+| Task 41: Implement Video Library - Add CSS Styles | [x] | Update style.css with video library styles |
+| Task 42: Implement Video Library - Initialize State & DOM | [x] | Update app.js to declare uploadedVideos, activeVideoId and DOM elements |
+| Task 43: Implement Video Library - Hook Upload Pipeline | [x] | Update app.js handleVideoUpload to store processed videos |
+| Task 44: Implement Video Library - UI & Switching Logic | [x] | Add updateVideoLibraryUI, switchActiveVideo, deleteVideo to app.js |
+| Task 45: Implement Video Library - Unit Tests | [x] | Run math-utils unit tests |
+| Task 46: Implement Video Library - Manual Verification | [x] | Perform manual verification of upload, switch, delete scenarios |
+| Task 47: Brainstorming - Explore Project Context for User Login & Guest Mode | [x] | Inspect workspace for any existing user/auth structure |
+| Task 48: Brainstorming - Ask Clarifying Questions | [x] | Ask user clarifying questions one at a time |
+| Task 49: Brainstorming - Propose 2-3 Approaches | [x] | Propose options for email login and guest mode storage/integration |
+| Task 50: Brainstorming - Present Design | [x] | Present layout, components, and flow for login & guest mode |
+| Task 51: Brainstorming - Write Design Doc | [x] | Document final design details in YYYY-MM-DD-auth-design.md |
+| Task 52: Write Implementation Plan | [x] | Create detailed implementation plan in implementation_plan.md |
+| Task 53: Implement User Login & Guest Mode | [x] | Firebase Auth + Firestore leaderboard integrated, math tests pass |
+| Task 54: Update HTML Leaderboard Title with Dynamic Span | [x] | Added #leaderboard-video-title span to index.html |
+| Task 55: Add CSS Compact Dropzone + video-title-context Styles | [x] | Inserted .dropzone.compact and .video-title-context into style.css |
+| Task 56: Refactor JS Dropzone .compact Toggle + Leaderboard Title | [x] | Replaced .dropzone-content hidden logic, updated refreshLeaderboard to set video name |
+| Task 57: Brainstorming - Explore project context for Google Sign-In | [x] | Checked app.js, index.html, style.css, and Firebase config |
+| Task 58: Brainstorming - Ask clarifying questions | [x] | Asked user and received choice for signInWithPopup + styled button |
+| Task 59: Brainstorming - Propose 2-3 approaches | [x] | Propose Google Auth integration approaches and trade-offs |
+| Task 60: Brainstorming - Present design | [x] | Present component structure, state management, and authentication flow |
+| Task 61: Brainstorming - Write design doc | [x] | Documented final design details in 2026-06-04-google-auth-design.md |
+| Task 62: Write Implementation Plan | [x] | Created detailed implementation plan in 2026-06-04-google-auth.md |
+| Task 63: Implement Google Sign-In - Add HTML Button | [x] | Add Google Sign-in button to index.html |
+| Task 64: Implement Google Sign-In - Add CSS Button Styles | [x] | Add .btn-google styling to style.css |
+| Task 65: Implement Google Sign-In - Refactor JS imports & auth flow | [x] | Integrate GoogleAuthProvider and signInWithPopup logic in app.js |
+| Task 66: Google Sign-In - Verification & Walkthrough | [x] | Verify unit tests and manual browser flow, write walkthrough |
+| Task 67: Brainstorming - Explore Project Context for Data Persistence | [x] | Inspect app.js to understand current auth, video storage, and leaderboard state logic |
+| Task 67: Brainstorming - Explore Project Context for Data Persistence | [x] | Inspect app.js to understand current auth, video storage, and leaderboard state logic |
+| Task 68: Brainstorming - Ask Clarifying Questions | [x] | Ask user clarifying questions one at a time |
+| Task 68: Brainstorming - Ask Clarifying Questions | [x] | Ask user clarifying questions one at a time |
+| Task 69: Brainstorming - Propose 2-3 Approaches | [x] | Propose options for persisting state (IndexedDB, Firebase, LocalStorage) |
+| Task 70: Brainstorming - Present Design | [x] | Present architecture for data persistence |
+| Task 71: Brainstorming - Write Design Doc | [x] | Document final design details in YYYY-MM-DD-data-persistence-design.md |
+| Task 72: Write Implementation Plan | [x] | Create detailed implementation plan in implementation_plan.md |
+| Task 73: Execution - Integrate idb-keyval & Boot Overlay | [x] | Add CDN script and boot-overlay HTML to index.html |
+| Task 74: Execution - Style Boot Overlay | [x] | Add boot-overlay styles to style.css |
+| Task 75: Execution - Implement Boot & Sync Logic | [x] | Modify app.js to handle Promises and IndexedDB syncing |
+| Task 76: Execution - Verification | [x] | Verify the unified boot and persistence locally |
