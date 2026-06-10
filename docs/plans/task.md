@@ -81,3 +81,12 @@
 | Task 75: Execution - Implement Boot & Sync Logic | [x] | Modify app.js to handle Promises and IndexedDB syncing |
 | Task 76: Execution - Verification | [x] | Verify the unified boot and persistence locally |
 | Task 77: Upload Code to GitHub | [x] | Push local changes to GitHub repository main branch while preserving commit history |
+| Task 78: HTML Structures for Nickname Modal & Three-Column Summary | [x] | Add #nickname-overlay and #summary-section panel markup to index.html |
+| Task 79: CSS Styling for Nickname Modal & Three-Column Summary | [x] | Add CSS styles for #nickname-overlay, .summary-wrapper grid/flex layout, and segment scores |
+| Task 80: Landmark Compression & Firebase Storage Imports | [x] | Add Firebase Storage JS CDN imports, storage instance, and landmark prune/compress/decompress algorithms |
+| Task 81: Post-Login Nickname Flow Integration | [x] | Implement userNickname state, nickname submit form listener, checkNicknameAndPrompt, and updateAuthUI nickname display |
+| Task 82: Cloud Video Upload & Storage Sync | [x] | Update handleVideoUpload to upload files/metadata to cloud, implement syncCloudVideoLibrary, and update deleteVideo to delete remote assets |
+| Task 83: Segment Scoring Tracking & Nickname-based Score Submission | [x] | Track segmentScores every 1.5 seconds, clear on retry, and record userNickname in Firestore scores collection |
+| Task 84: Render Segment Scores & Leaderboards in Summary Panels | [x] | Render segment scores list in summary left panel and fetch/render leaderboard list in summary right panel |
+| Task 85: Verification & Cleanup | [x] | Run math unit tests, verify Google login nickname flow, upload, cloud library sync, delete, and desktop three-column summary layout |
+

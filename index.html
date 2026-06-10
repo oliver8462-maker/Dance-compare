@@ -70,6 +70,23 @@
             </div>
         </div>
 
+        <!-- 暱稱輸入全螢幕遮罩 -->
+        <div id="nickname-overlay" class="auth-overlay hidden">
+            <div class="auth-card">
+                <div class="auth-logo">✏️</div>
+                <h2 class="auth-title">設定您的<span>暱稱</span></h2>
+                <p class="auth-subtitle">請輸入排行榜與挑戰紀錄上顯示的暱稱</p>
+                <div id="nickname-error" class="auth-error hidden"></div>
+                <form id="nickname-form" class="auth-form" autocomplete="off">
+                    <div class="auth-input-group">
+                        <label for="nickname-input">暱稱 (2-15 個字元)</label>
+                        <input type="text" id="nickname-input" placeholder="請輸入暱稱" required minlength="2" maxlength="15" />
+                    </div>
+                    <button type="submit" id="nickname-submit-btn" class="btn btn-primary btn-large auth-submit-btn">確認儲存</button>
+                </form>
+            </div>
+        </div>
+
         <!-- 頂部導覽列 -->
         <header class="app-header">
             <div class="logo">
@@ -181,55 +198,74 @@
 
             <!-- 階段三：結算畫面 (全螢幕磨砂玻璃 Overlay) -->
             <section id="summary-section" class="summary-overlay hidden">
-                <div class="summary-card">
-                    <div class="summary-icon">🏆</div>
-                    <h2>舞蹈測試結算</h2>
-                    
-                    <div class="grade-container">
-                        <div class="grade-circle">
-                            <span id="final-grade">A</span>
-                        </div>
-                        <p class="grade-label">動作評等</p>
-                    </div>
-
-                    <div class="final-score-box">
-                        <span class="final-score-label">總平均相似分數</span>
-                        <div class="final-score-value">
-                            <span id="final-score">85.4</span>
-                            <span class="score-unit">分</span>
+                <div class="summary-wrapper">
+                    <!-- 左欄：區間評分 -->
+                    <div class="summary-side-panel left-panel">
+                        <h3>📊 每段動作詳細評分</h3>
+                        <div id="segment-scores-list" class="segment-scores-list">
+                            <!-- 動態生成區間分數 -->
                         </div>
                     </div>
 
-                    <div class="stats-grid">
-                        <div class="stat-item perfect">
-                            <span class="stat-label">Perfect</span>
-                            <span id="perfect-count" class="stat-count">0</span>
+                    <!-- 中欄：核心結算與回饋 -->
+                    <div class="summary-card">
+                        <div class="summary-icon">🏆</div>
+                        <h2>舞蹈測試結算</h2>
+                        
+                        <div class="grade-container">
+                            <div class="grade-circle">
+                                <span id="final-grade">A</span>
+                            </div>
+                            <p class="grade-label">動作評等</p>
                         </div>
-                        <div class="stat-item great">
-                            <span class="stat-label">Great</span>
-                            <span id="great-count" class="stat-count">0</span>
+
+                        <div class="final-score-box">
+                            <span class="final-score-label">總平均相似分數</span>
+                            <div class="final-score-value">
+                                <span id="final-score">85.4</span>
+                                <span class="score-unit">分</span>
+                            </div>
                         </div>
-                        <div class="stat-item good">
-                            <span class="stat-label">Good</span>
-                            <span id="good-count" class="stat-count">0</span>
+
+                        <div class="stats-grid">
+                            <div class="stat-item perfect">
+                                <span class="stat-label">Perfect</span>
+                                <span id="perfect-count" class="stat-count">0</span>
+                            </div>
+                            <div class="stat-item great">
+                                <span class="stat-label">Great</span>
+                                <span id="great-count" class="stat-count">0</span>
+                            </div>
+                            <div class="stat-item good">
+                                <span class="stat-label">Good</span>
+                                <span id="good-count" class="stat-count">0</span>
+                            </div>
+                            <div class="stat-item miss">
+                                <span class="stat-label">Miss</span>
+                                <span id="miss-count" class="stat-count">0</span>
+                            </div>
                         </div>
-                        <div class="stat-item miss">
-                            <span class="stat-label">Miss</span>
-                            <span id="miss-count" class="stat-count">0</span>
+
+                        <div class="advice-card">
+                            <div class="advice-header">💡 AI 動作改進評語</div>
+                            <p id="advice-text" class="advice-text">正在分析您的動作習慣...</p>
+                            <div id="mistakes-timeline" class="mistakes-timeline"></div>
+                        </div>
+
+                        <div id="summary-score-upload-status" class="summary-score-upload-status hidden"></div>
+
+                        <div class="summary-actions">
+                            <button id="retry-btn" class="btn btn-secondary">重新測試</button>
+                            <button id="new-video-btn" class="btn btn-primary">上傳新影片</button>
                         </div>
                     </div>
 
-                    <div class="advice-card">
-                        <div class="advice-header">💡 AI 動作改進評語</div>
-                        <p id="advice-text" class="advice-text">正在分析您的動作習慣...</p>
-                        <div id="mistakes-timeline" class="mistakes-timeline"></div>
-                    </div>
-
-                    <div id="summary-score-upload-status" class="summary-score-upload-status hidden"></div>
-
-                    <div class="summary-actions">
-                        <button id="retry-btn" class="btn btn-secondary">重新測試</button>
-                        <button id="new-video-btn" class="btn btn-primary">上傳新影片</button>
+                    <!-- 右欄：排行榜 -->
+                    <div class="summary-side-panel right-panel">
+                        <h3>🏆 本片高手排行榜</h3>
+                        <div id="summary-leaderboard-list" class="leaderboard-list">
+                            <!-- 動態生成排行榜 -->
+                        </div>
                     </div>
                 </div>
             </section>

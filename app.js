@@ -4,7 +4,8 @@ import { computeJointSimilarity, scaleScore, computeJointSimilarities, computeJo
 // Firebase SDK (v10 compat via CDN ES modules)
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, addDoc, query, where, orderBy, limit, getDocs, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getFirestore, collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, limit, getDocs, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 // Firebase Configuration
 const firebaseConfig = {
@@ -20,6 +21,50 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
 const db = getFirestore(firebaseApp);
+const storage = getStorage(firebaseApp);
+
+// Index array of the 16 landmarks used in similarity calculations
+const CORE_LANDMARK_INDICES = [11, 12, 13, 14, 15, 16, 19, 20, 23, 24, 25, 26, 27, 28, 31, 32];
+
+/**
+ * Prunes and compresses landmarks array to minimize storage footprint.
+ * Only keeps 16 core joints, rounds values to 4 decimal places.
+ */
+function compressPoseFeatures(features) {
+  return features.map(f => {
+    if (!f.landmarks) {
+      return { time: f.time, landmarks: null };
+    }
+    // Only map the 16 core landmarks: format [index, x, y, visibility]
+    const pruned = CORE_LANDMARK_INDICES.map(idx => {
+      const p = f.landmarks[idx];
+      if (!p) return [idx, 0, 0, 0];
+      return [
+        idx,
+        parseFloat(p.x.toFixed(4)),
+        parseFloat(p.y.toFixed(4)),
+        parseFloat((p.visibility || 0).toFixed(4))
+      ];
+    });
+    return { time: f.time, landmarks: pruned };
+  });
+}
+
+/**
+ * Restores compressed pose landmarks back to the 33-point structure required by math-utils.
+ */
+function decompressPoseFeatures(compressedFeatures) {
+  return compressedFeatures.map(f => {
+    if (!f.landmarks) {
+      return { time: f.time, landmarks: null };
+    }
+    const restored = Array(33).fill(null);
+    f.landmarks.forEach(([idx, x, y, vis]) => {
+      restored[idx] = { x, y, z: 0, visibility: vis };
+    });
+    return { time: f.time, landmarks: restored };
+  });
+}
 
 // Application State Variables
 let poseFeatures = []; // Preprocessed reference pose landmarks sequence
@@ -35,10 +80,46 @@ let activeVideoId = null;
 let currentUser = null; // Firebase user object or null
 let isGuest = false;
 let isSignUpMode = false; // Toggle between login/signup form
+let userNickname = ''; // Logged-in nickname or guest nickname
+
+async function checkNicknameAndPrompt() {
+  const nicknameOverlay = document.getElementById('nickname-overlay');
+  const nicknameInput = document.getElementById('nickname-input');
+  
+  if (currentUser) {
+    try {
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (userDoc.exists() && userDoc.data().nickname) {
+        userNickname = userDoc.data().nickname;
+        updateAuthUI();
+        nicknameOverlay.classList.add('hidden');
+      } else {
+        // Show nickname prompt
+        userNickname = '';
+        nicknameInput.value = '';
+        nicknameOverlay.classList.remove('hidden');
+      }
+    } catch (err) {
+      console.error('Error fetching user nickname:', err);
+    }
+  } else if (isGuest) {
+    const saved = localStorage.getItem('guestNickname');
+    if (saved) {
+      userNickname = saved;
+      updateAuthUI();
+      nicknameOverlay.classList.add('hidden');
+    } else {
+      userNickname = '';
+      nicknameInput.value = '';
+      nicknameOverlay.classList.remove('hidden');
+    }
+  }
+}
 
 // Real-time Scoring Variables
 let frameScores = []; // Scores in the current 1.5-second interval
 let allScores = []; // All scores recorded during the test
+let segmentScores = []; // Stores objects { timeStart, timeEnd, score, rating }
 let feedbackIntervalId = null;
 let timelineIntervalId = null;
 
@@ -294,12 +375,13 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   const bootOverlay = document.getElementById('boot-overlay');
   
-  // Promise for Firebase Auth resolution
   const authPromise = new Promise((resolve) => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUser = user;
         isGuest = false;
+        await checkNicknameAndPrompt();
+        await syncCloudVideoLibrary();
       }
       updateAuthUI();
       unsubscribe(); // Only listen once for boot
@@ -476,11 +558,44 @@ async function handleVideoUpload(file) {
   
   // Store processed video and features
   const newVideoId = 'vid_' + Date.now();
+  let finalUrlForState = videoURL;
+  let remoteStoragePath = null;
+
+  if (currentUser) {
+    preprocessStatusText.textContent = "正在將影片上傳至雲端儲儲...";
+    try {
+      const storageRef = ref(storage, `videos/${currentUser.uid}/${newVideoId}_${file.name}`);
+      const uploadSnapshot = await uploadBytes(storageRef, file);
+      const downloadURL = await getDownloadURL(uploadSnapshot.ref);
+      
+      finalUrlForState = downloadURL;
+      remoteStoragePath = `videos/${currentUser.uid}/${newVideoId}_${file.name}`;
+      
+      // Compress landmarks
+      const compressed = compressPoseFeatures(poseFeatures);
+      
+      // Save metadata & features to Firestore
+      await addDoc(collection(db, 'videos'), {
+        videoId: newVideoId,
+        userId: currentUser.uid,
+        name: file.name,
+        url: downloadURL,
+        storagePath: remoteStoragePath,
+        poseFeatures: JSON.stringify(compressed),
+        timestamp: serverTimestamp()
+      });
+    } catch (err) {
+      console.error('Failed to sync video to Firebase:', err);
+      alert('上傳至雲端失敗，但您的影片將仍保存在本地快取。');
+    }
+  }
+
   const newVideo = {
     id: newVideoId,
     name: file.name,
     file: file,
-    url: videoURL,
+    url: finalUrlForState,
+    storagePath: remoteStoragePath,
     poseFeatures: [...poseFeatures]
   };
   uploadedVideos.push(newVideo);
@@ -501,12 +616,49 @@ async function handleVideoUpload(file) {
   saveStateToIndexedDB();
 }
 
+async function syncCloudVideoLibrary() {
+  if (!currentUser) return;
+  
+  try {
+    const q = query(
+      collection(db, 'videos'),
+      where('userId', '==', currentUser.uid),
+      orderBy('timestamp', 'desc')
+    );
+    const snapshot = await getDocs(q);
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      // Avoid duplicates
+      if (!uploadedVideos.some(v => v.id === data.videoId)) {
+        // Decompress landmarks
+        const decompressed = decompressPoseFeatures(JSON.parse(data.poseFeatures));
+        
+        uploadedVideos.push({
+          id: data.videoId,
+          name: data.name,
+          file: null, // Remote file has no local File object
+          url: data.url,
+          storagePath: data.storagePath || null,
+          poseFeatures: decompressed
+        });
+      }
+    });
+    
+    updateVideoLibraryUI();
+    saveStateToIndexedDB();
+  } catch (err) {
+    console.error('Failed to sync cloud video library:', err);
+  }
+}
+
 // --- 4. Webcam & Countdown Logic (Task 5) ---
 async function initiateDanceTest() {
   isTestingState = true;
   isPlayingState = false;
   frameScores = [];
   allScores = [];
+  segmentScores = [];
   ratingsCount = { perfect: 0, great: 0, good: 0, miss: 0 };
   jointAccumulators = {};
   sessionMistakes = [];
@@ -807,6 +959,15 @@ function evaluateSegmentScore() {
     ratingsCount.miss++;
   }
 
+  // Push to segmentScores array
+  const segmentCount = segmentScores.length;
+  segmentScores.push({
+    timeStart: segmentCount * 1.5,
+    timeEnd: (segmentCount + 1) * 1.5,
+    score: Math.round(average),
+    rating: rating
+  });
+
   // Create floating bubble DOM element
   const bubble = document.createElement('div');
   bubble.className = `feedback-bubble ${className}`;
@@ -958,12 +1119,90 @@ function endDanceSession() {
     mistakesTimelineEl.innerHTML = '';
   }
 
+  // Render segment scores list
+  const segmentScoresList = document.getElementById('segment-scores-list');
+  if (segmentScoresList) {
+    if (segmentScores.length === 0) {
+      segmentScoresList.innerHTML = '<p class="leaderboard-empty">無評分資料</p>';
+    } else {
+      segmentScoresList.innerHTML = segmentScores.map(seg => {
+        const timeStr = `${Math.floor(seg.timeStart / 60).toString().padStart(2, '0')}:${Math.floor(seg.timeStart % 60).toString().padStart(2, '0')} - ${Math.floor(seg.timeEnd / 60).toString().padStart(2, '0')}:${Math.floor(seg.timeEnd % 60).toString().padStart(2, '0')}`;
+        const ratingClass = seg.rating.toLowerCase();
+        return `
+          <div class="segment-score-row ${ratingClass}">
+            <span class="segment-score-time">${timeStr}</span>
+            <span class="segment-score-value">${seg.score} 分 (${seg.rating})</span>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // Fetch and render summary leaderboard inside Right Panel
+  refreshSummaryLeaderboard();
+
   finalGradeEl.textContent = grade;
   finalScoreEl.textContent = finalAverage.toFixed(1);
   summarySection.classList.remove('hidden');
 
-  // Submit score to Firestore for logged-in users
+  // Submit score to Firestore
   handleScoreSubmission(finalAverage, grade);
+}
+
+async function refreshSummaryLeaderboard() {
+  const summaryLeaderboardList = document.getElementById('summary-leaderboard-list');
+  if (!summaryLeaderboardList) return;
+
+  const activeVideo = uploadedVideos.find(v => v.id === activeVideoId);
+  if (!activeVideo) {
+    summaryLeaderboardList.innerHTML = '<p class="leaderboard-empty">無選定影片</p>';
+    return;
+  }
+
+  const videoName = activeVideo.name;
+
+  try {
+    const scoresQuery = query(
+      collection(db, 'scores'),
+      where('videoName', '==', videoName),
+      orderBy('score', 'desc'),
+      limit(5)
+    );
+
+    const snapshot = await getDocs(scoresQuery);
+
+    if (snapshot.empty) {
+      summaryLeaderboardList.innerHTML = '<p class="leaderboard-empty">尚無挑戰紀錄，快來搶下第一名！</p>';
+      return;
+    }
+
+    let html = '';
+    let rank = 1;
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      const isSelf = (currentUser && data.userId === currentUser.uid) || (!currentUser && data.nickname === userNickname);
+      const rankClass = rank <= 3 ? `rank-${rank}` : '';
+      const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+      const dateStr = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleDateString('zh-TW') : '';
+      const nicknameDisplay = data.nickname || (data.email ? maskEmail(data.email) : '訪客');
+
+      html += `
+        <div class="leaderboard-row ${isSelf ? 'self-row' : ''}">
+          <span class="leaderboard-rank ${rankClass}">${rankEmoji}</span>
+          <span class="leaderboard-email">${nicknameDisplay}${isSelf ? ' (你)' : ''}</span>
+          <span class="leaderboard-score">${data.score}</span>
+          <span class="leaderboard-grade">${data.grade}</span>
+          <span class="leaderboard-date">${dateStr}</span>
+        </div>
+      `;
+      rank++;
+    });
+
+    summaryLeaderboardList.innerHTML = html;
+  } catch (error) {
+    console.error('Failed to fetch summary leaderboard:', error);
+    summaryLeaderboardList.innerHTML = '<p class="leaderboard-empty">排行榜載入失敗，請稍後再試。</p>';
+  }
 }
 
 /**
@@ -1095,7 +1334,7 @@ window.switchActiveVideo = function(videoId) {
   saveStateToIndexedDB();
 };
 
-window.deleteVideo = function(videoId, event) {
+window.deleteVideo = async function(videoId, event) {
   if (event) event.stopPropagation();
   
   const videoIndex = uploadedVideos.findIndex(v => v.id === videoId);
@@ -1103,8 +1342,32 @@ window.deleteVideo = function(videoId, event) {
 
   const targetVideo = uploadedVideos[videoIndex];
   
+  // Delete from Cloud if logged in
+  if (currentUser) {
+    try {
+      // Find Firestore document
+      const q = query(
+        collection(db, 'videos'),
+        where('videoId', '==', videoId),
+        where('userId', '==', currentUser.uid)
+      );
+      const snapshot = await getDocs(q);
+      snapshot.forEach(async (docSnapshot) => {
+        await deleteDoc(docSnapshot.ref);
+      });
+      
+      // Delete from Firebase Storage
+      if (targetVideo.storagePath) {
+        const fileRef = ref(storage, targetVideo.storagePath);
+        await deleteObject(fileRef);
+      }
+    } catch (err) {
+      console.warn('Failed to delete cloud assets:', err);
+    }
+  }
+
   // Free blob URL memory
-  if (targetVideo.url) {
+  if (targetVideo.url && targetVideo.url.startsWith('blob:')) {
     URL.revokeObjectURL(targetVideo.url);
   }
   
@@ -1113,10 +1376,8 @@ window.deleteVideo = function(videoId, event) {
 
   if (activeVideoId === videoId) {
     if (uploadedVideos.length > 0) {
-      // Auto switch to the first video
       window.switchActiveVideo(uploadedVideos[0].id);
     } else {
-      // Library is empty, revert to upload view
       activeVideoId = null;
       resetToUploadState();
     }
@@ -1130,13 +1391,16 @@ window.deleteVideo = function(videoId, event) {
 
 function setupAuthListeners() {
   // Monitor Firebase auth state
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
       currentUser = user;
       isGuest = false;
-      updateAuthUI();
+      await checkNicknameAndPrompt();
+      if (typeof syncCloudVideoLibrary === 'function') {
+        await syncCloudVideoLibrary();
+      }
     }
-    // If no user and not guest, keep overlay visible (default state)
+    updateAuthUI();
   });
 
   // Google Sign-In
@@ -1214,7 +1478,7 @@ function setupAuthListeners() {
     isGuest = true;
     currentUser = null;
     authOverlay.classList.add('hidden');
-    updateAuthUI();
+    checkNicknameAndPrompt();
   });
 
   // Header action button (login/signup or logout)
@@ -1224,6 +1488,9 @@ function setupAuthListeners() {
       signOut(auth).then(() => {
         currentUser = null;
         isGuest = true;
+        userNickname = '';
+        // Clear local storage guest nickname
+        localStorage.removeItem('guestNickname');
         updateAuthUI();
       });
     } else {
@@ -1231,15 +1498,64 @@ function setupAuthListeners() {
       authOverlay.classList.remove('hidden');
     }
   });
+
+  // Nickname Form submission
+  const nicknameOverlay = document.getElementById('nickname-overlay');
+  const nicknameForm = document.getElementById('nickname-form');
+  const nicknameInput = document.getElementById('nickname-input');
+  const nicknameError = document.getElementById('nickname-error');
+
+  if (nicknameForm) {
+    nicknameForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const nickname = nicknameInput.value.trim();
+      if (nickname.length < 2 || nickname.length > 15) {
+        nicknameError.textContent = '暱稱長度必須為 2 到 15 個字元。';
+        nicknameError.classList.remove('hidden');
+        return;
+      }
+
+      try {
+        nicknameError.classList.add('hidden');
+        const submitBtn = document.getElementById('nickname-submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '儲存中...';
+
+        if (currentUser) {
+          // Save to Firestore users collection
+          await setDoc(doc(db, 'users', currentUser.uid), {
+            nickname: nickname,
+            updatedAt: serverTimestamp()
+          });
+          userNickname = nickname;
+        } else if (isGuest) {
+          // Save to LocalStorage for guest
+          localStorage.setItem('guestNickname', nickname);
+          userNickname = nickname;
+        }
+
+        updateAuthUI();
+        nicknameOverlay.classList.add('hidden');
+      } catch (err) {
+        console.error('Failed to save nickname:', err);
+        nicknameError.textContent = '儲存失敗，請檢查網路連線。';
+        nicknameError.classList.remove('hidden');
+      } finally {
+        const submitBtn = document.getElementById('nickname-submit-btn');
+        submitBtn.disabled = false;
+        submitBtn.textContent = '確認儲存';
+      }
+    });
+  }
 }
 
 function updateAuthUI() {
   authUserInfo.classList.remove('hidden');
   if (currentUser) {
-    authUserLabel.textContent = `👤 ${currentUser.email}`;
+    authUserLabel.textContent = `👤 ${userNickname || currentUser.email}`;
     authActionBtn.textContent = '登出';
   } else if (isGuest) {
-    authUserLabel.textContent = '👤 訪客模式 (Guest)';
+    authUserLabel.textContent = `👤 ${userNickname || '訪客模式 (Guest)'}`;
     authActionBtn.textContent = '登入 / 註冊';
   }
 }
@@ -1278,20 +1594,11 @@ function maskEmail(email) {
 
 // Submit score to Firestore after dance session
 async function handleScoreSubmission(score, grade) {
-  if (!currentUser) {
-    // Guest mode: show suggestion
+  if (!currentUser && !userNickname) {
+    // If guest doesn't have nickname yet
     summaryScoreUploadStatus.className = 'summary-score-upload-status guest';
-    summaryScoreUploadStatus.innerHTML = '💡 登入帳號即可儲存歷程並加入排行榜！ <a href="#" id="summary-login-link" style="color: var(--primary); font-weight: 600;">立即登入</a>';
+    summaryScoreUploadStatus.innerHTML = '💡 填寫暱稱即可上傳分數至排行榜！';
     summaryScoreUploadStatus.classList.remove('hidden');
-
-    // Attach click handler for inline login link
-    const loginLink = document.getElementById('summary-login-link');
-    if (loginLink) {
-      loginLink.addEventListener('click', (e) => {
-        e.preventDefault();
-        authOverlay.classList.remove('hidden');
-      });
-    }
     return;
   }
 
@@ -1301,8 +1608,8 @@ async function handleScoreSubmission(score, grade) {
 
   try {
     await addDoc(collection(db, 'scores'), {
-      userId: currentUser.uid,
-      email: currentUser.email,
+      userId: currentUser ? currentUser.uid : `guest_${Date.now()}`,
+      nickname: userNickname || '訪客',
       videoName: videoName,
       score: parseFloat(score.toFixed(1)),
       grade: grade,
@@ -1356,15 +1663,16 @@ async function refreshLeaderboard() {
     let rank = 1;
     snapshot.forEach((doc) => {
       const data = doc.data();
-      const isSelf = currentUser && data.userId === currentUser.uid;
+      const isSelf = (currentUser && data.userId === currentUser.uid) || (!currentUser && data.nickname === userNickname);
       const rankClass = rank <= 3 ? `rank-${rank}` : '';
       const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
       const dateStr = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleDateString('zh-TW') : '';
+      const nicknameDisplay = data.nickname || (data.email ? maskEmail(data.email) : '訪客');
 
       html += `
         <div class="leaderboard-row ${isSelf ? 'self-row' : ''}">
           <span class="leaderboard-rank ${rankClass}">${rankEmoji}</span>
-          <span class="leaderboard-email">${maskEmail(data.email)}${isSelf ? ' (你)' : ''}</span>
+          <span class="leaderboard-email">${nicknameDisplay}${isSelf ? ' (你)' : ''}</span>
           <span class="leaderboard-score">${data.score}</span>
           <span class="leaderboard-grade">${data.grade}</span>
           <span class="leaderboard-date">${dateStr}</span>

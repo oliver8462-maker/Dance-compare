@@ -1538,3 +1538,117 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* Nickname Overlay Styles */
+#nickname-overlay {
+  z-index: 300;
+}
+
+/* Summary Grid/Flex Wrapper for Desktop vs Mobile */
+.summary-overlay {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.summary-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 500px;
+  margin: auto;
+}
+
+/* Summary Side Panels (Left & Right) */
+.summary-side-panel {
+  background: rgba(17, 25, 40, 0.75);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glass);
+  border-radius: 24px;
+  padding: 1.5rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  height: fit-content;
+}
+
+.summary-side-panel h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 1rem;
+  color: var(--text-main);
+  border-bottom: 1px solid var(--border-glass);
+  padding-bottom: 0.5rem;
+  text-align: left;
+}
+
+/* Segment Scores List */
+.segment-scores-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Custom scrollbar for segment scores */
+.segment-scores-list::-webkit-scrollbar {
+  width: 4px;
+}
+.segment-scores-list::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+.segment-score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.8rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  font-size: 0.82rem;
+}
+
+.segment-score-time {
+  font-family: var(--font-numeric);
+  color: var(--text-muted);
+}
+
+.segment-score-value {
+  font-family: var(--font-numeric);
+  font-weight: 700;
+}
+
+/* Segment score label coloring */
+.segment-score-row.perfect .segment-score-value { color: var(--color-perfect); }
+.segment-score-row.great .segment-score-value { color: var(--color-great); }
+.segment-score-row.good .segment-score-value { color: var(--color-good); }
+.segment-score-row.miss .segment-score-value { color: var(--color-miss); }
+
+/* Desktop Media Query (Three-Column Layout) */
+@media (min-width: 1024px) {
+  .summary-wrapper {
+    flex-direction: row;
+    max-width: 1200px;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .summary-side-panel {
+    flex: 0 0 320px;
+    height: 100%;
+    align-self: stretch;
+  }
+  .summary-card {
+    flex: 1;
+    max-width: 500px;
+    margin: 0;
+  }
+  .segment-scores-list {
+    max-height: 520px;
+  }
+}
+
