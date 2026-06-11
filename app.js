@@ -86,6 +86,30 @@ let userNickname = ''; // Logged-in nickname or guest nickname
 let isNewSignup = false; // Flag to track brand new user registrations
 let pendingScoreSubmission = null; // Store { score, grade } temporarily during post-settlement nickname setup
 
+// --- Local Storage Leaderboard Fallbacks ---
+function getLocalScores(videoName) {
+  try {
+    const key = `local_scores_${videoName}`;
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  } catch (e) {
+    console.error('Error reading local scores:', e);
+    return [];
+  }
+}
+
+function saveScoreLocally(videoName, scoreObj) {
+  try {
+    const key = `local_scores_${videoName}`;
+    const scores = getLocalScores(videoName);
+    scores.push(scoreObj);
+    scores.sort((a, b) => b.score - a.score);
+    localStorage.setItem(key, JSON.stringify(scores.slice(0, 10)));
+  } catch (e) {
+    console.error('Error saving local score:', e);
+  }
+}
+
 async function checkNicknameAndPrompt() {
   if (currentUser) {
     if (isNewSignup) {
@@ -99,11 +123,18 @@ async function checkNicknameAndPrompt() {
       if (userDoc.exists() && userDoc.data().nickname) {
         userNickname = userDoc.data().nickname;
         updateAuthUI();
-      } else {
-        userNickname = '';
+        return;
       }
     } catch (err) {
-      console.error('Error fetching user nickname:', err);
+      console.warn('Error fetching user nickname from Firestore, checking local fallback:', err);
+    }
+
+    // Local storage fallback for logged-in user if Firestore fails/is not setup
+    const localSaved = localStorage.getItem(`userNickname_${currentUser.uid}`);
+    if (localSaved) {
+      userNickname = localSaved;
+      updateAuthUI();
+    } else {
       userNickname = '';
     }
   } else if (isGuest) {
@@ -1207,6 +1238,7 @@ async function refreshSummaryLeaderboard() {
   }
 
   const videoName = activeVideo.name;
+  let scores = [];
 
   try {
     const scoresQuery = query(
@@ -1217,39 +1249,55 @@ async function refreshSummaryLeaderboard() {
     );
 
     const snapshot = await getDocs(scoresQuery);
-
-    if (snapshot.empty) {
-      summaryLeaderboardList.innerHTML = '<p class="leaderboard-empty">尚無挑戰紀錄，快來搶下第一名！</p>';
-      return;
-    }
-
-    let html = '';
-    let rank = 1;
     snapshot.forEach((doc) => {
-      const data = doc.data();
-      const isSelf = (currentUser && data.userId === currentUser.uid) || (!currentUser && data.nickname === userNickname);
-      const rankClass = rank <= 3 ? `rank-${rank}` : '';
-      const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
-      const dateStr = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleDateString('zh-TW') : '';
-      const nicknameDisplay = data.nickname || (data.email ? maskEmail(data.email) : '訪客');
-
-      html += `
-        <div class="leaderboard-row ${isSelf ? 'self-row' : ''}">
-          <span class="leaderboard-rank ${rankClass}">${rankEmoji}</span>
-          <span class="leaderboard-email">${nicknameDisplay}${isSelf ? ' (你)' : ''}</span>
-          <span class="leaderboard-score">${data.score}</span>
-          <span class="leaderboard-grade">${data.grade}</span>
-          <span class="leaderboard-date">${dateStr}</span>
-        </div>
-      `;
-      rank++;
+      scores.push(doc.data());
     });
-
-    summaryLeaderboardList.innerHTML = html;
   } catch (error) {
-    console.error('Failed to fetch summary leaderboard:', error);
-    summaryLeaderboardList.innerHTML = '<p class="leaderboard-empty">排行榜載入失敗，請稍後再試。</p>';
+    console.warn('Failed to fetch summary leaderboard from Firestore, using local fallback:', error);
   }
+
+  // Fallback to local storage
+  if (scores.length === 0) {
+    scores = getLocalScores(videoName).slice(0, 5);
+  }
+
+  if (scores.length === 0) {
+    summaryLeaderboardList.innerHTML = '<p class="leaderboard-empty">尚無挑戰紀錄，快來搶下第一名！</p>';
+    return;
+  }
+
+  let html = '';
+  let rank = 1;
+  scores.forEach((data) => {
+    const isSelf = (currentUser && data.userId === currentUser.uid) || (!currentUser && data.nickname === userNickname);
+    const rankClass = rank <= 3 ? `rank-${rank}` : '';
+    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+    
+    let dateStr = '';
+    if (data.timestamp) {
+      if (data.timestamp.seconds) {
+        dateStr = new Date(data.timestamp.seconds * 1000).toLocaleDateString('zh-TW');
+      } else if (data.timestamp instanceof Date) {
+        dateStr = data.timestamp.toLocaleDateString('zh-TW');
+      } else {
+        dateStr = new Date(data.timestamp).toLocaleDateString('zh-TW');
+      }
+    }
+    const nicknameDisplay = data.nickname || (data.email ? maskEmail(data.email) : '訪客');
+
+    html += `
+      <div class="leaderboard-row ${isSelf ? 'self-row' : ''}">
+        <span class="leaderboard-rank ${rankClass}">${rankEmoji}</span>
+        <span class="leaderboard-email">${nicknameDisplay}${isSelf ? ' (你)' : ''}</span>
+        <span class="leaderboard-score">${data.score}</span>
+        <span class="leaderboard-grade">${data.grade}</span>
+        <span class="leaderboard-date">${dateStr}</span>
+      </div>
+    `;
+    rank++;
+  });
+
+  summaryLeaderboardList.innerHTML = html;
 }
 
 /**
@@ -1542,16 +1590,22 @@ function setupAuthListeners() {
         submitBtn.textContent = '儲存中...';
 
         if (currentUser) {
-          // Save to Firestore users collection with 10-second timeout
-          await timeoutPromise(
-            setDoc(doc(db, 'users', currentUser.uid), {
-              nickname: nickname,
-              updatedAt: serverTimestamp()
-            }),
-            10000,
-            "儲存超時，請檢查您的網路連線。"
-          );
-          userNickname = nickname;
+          try {
+            // Save to Firestore users collection with a shorter 3-second timeout to check connection
+            await timeoutPromise(
+              setDoc(doc(db, 'users', currentUser.uid), {
+                nickname: nickname,
+                updatedAt: serverTimestamp()
+              }),
+              3000,
+              "資料庫連線超時"
+            );
+            userNickname = nickname;
+          } catch (dbErr) {
+            console.warn('Failed to save nickname to Firestore, falling back to LocalStorage:', dbErr);
+            localStorage.setItem(`userNickname_${currentUser.uid}`, nickname);
+            userNickname = nickname;
+          }
         } else {
           // Save to LocalStorage for guest
           localStorage.setItem('guestNickname', nickname);
@@ -1660,6 +1714,16 @@ async function handleScoreSubmission(score, grade) {
   const activeVideo = uploadedVideos.find(v => v.id === activeVideoId);
   const videoName = activeVideo ? activeVideo.name : 'unknown';
 
+  // Save score locally as a fallback
+  saveScoreLocally(videoName, {
+    userId: currentUser ? currentUser.uid : `guest_${Date.now()}`,
+    nickname: userNickname || '訪客',
+    videoName: videoName,
+    score: parseFloat(score.toFixed(1)),
+    grade: grade,
+    timestamp: { seconds: Math.floor(Date.now() / 1000) }
+  });
+
   try {
     await timeoutPromise(
       addDoc(collection(db, 'scores'), {
@@ -1680,7 +1744,7 @@ async function handleScoreSubmission(score, grade) {
   } catch (error) {
     console.error('Failed to submit score to Firestore:', error);
     summaryScoreUploadStatus.className = 'summary-score-upload-status guest';
-    summaryScoreUploadStatus.textContent = '⚠ 分數上傳失敗，請檢查網路連線。';
+    summaryScoreUploadStatus.textContent = '⚠ 分數上傳本地完成，但雲端同步失敗（不影響本機紀錄）。';
     summaryScoreUploadStatus.classList.remove('hidden');
   }
 }
@@ -1702,6 +1766,8 @@ async function refreshLeaderboard() {
     leaderboardVideoTitle.textContent = `「 ${videoName} 」`;
   }
 
+  let scores = [];
+
   try {
     const scoresQuery = query(
       collection(db, 'scores'),
@@ -1711,37 +1777,53 @@ async function refreshLeaderboard() {
     );
 
     const snapshot = await getDocs(scoresQuery);
-
-    if (snapshot.empty) {
-      leaderboardList.innerHTML = '<p class="leaderboard-empty">尚無挑戰紀錄，快來搶下第一名！</p>';
-      return;
-    }
-
-    let html = '';
-    let rank = 1;
     snapshot.forEach((doc) => {
-      const data = doc.data();
-      const isSelf = (currentUser && data.userId === currentUser.uid) || (!currentUser && data.nickname === userNickname);
-      const rankClass = rank <= 3 ? `rank-${rank}` : '';
-      const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
-      const dateStr = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleDateString('zh-TW') : '';
-      const nicknameDisplay = data.nickname || (data.email ? maskEmail(data.email) : '訪客');
-
-      html += `
-        <div class="leaderboard-row ${isSelf ? 'self-row' : ''}">
-          <span class="leaderboard-rank ${rankClass}">${rankEmoji}</span>
-          <span class="leaderboard-email">${nicknameDisplay}${isSelf ? ' (你)' : ''}</span>
-          <span class="leaderboard-score">${data.score}</span>
-          <span class="leaderboard-grade">${data.grade}</span>
-          <span class="leaderboard-date">${dateStr}</span>
-        </div>
-      `;
-      rank++;
+      scores.push(doc.data());
     });
-
-    leaderboardList.innerHTML = html;
   } catch (error) {
-    console.error('Failed to fetch leaderboard:', error);
-    leaderboardList.innerHTML = '<p class="leaderboard-empty">排行榜載入失敗，請稍後再試。</p>';
+    console.warn('Failed to fetch leaderboard from Firestore, using local fallback:', error);
   }
+
+  // Fallback to local storage
+  if (scores.length === 0) {
+    scores = getLocalScores(videoName).slice(0, 5);
+  }
+
+  if (scores.length === 0) {
+    leaderboardList.innerHTML = '<p class="leaderboard-empty">尚無挑戰紀錄，快來搶下第一名！</p>';
+    return;
+  }
+
+  let html = '';
+  let rank = 1;
+  scores.forEach((data) => {
+    const isSelf = (currentUser && data.userId === currentUser.uid) || (!currentUser && data.nickname === userNickname);
+    const rankClass = rank <= 3 ? `rank-${rank}` : '';
+    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `${rank}`;
+    
+    let dateStr = '';
+    if (data.timestamp) {
+      if (data.timestamp.seconds) {
+        dateStr = new Date(data.timestamp.seconds * 1000).toLocaleDateString('zh-TW');
+      } else if (data.timestamp instanceof Date) {
+        dateStr = data.timestamp.toLocaleDateString('zh-TW');
+      } else {
+        dateStr = new Date(data.timestamp).toLocaleDateString('zh-TW');
+      }
+    }
+    const nicknameDisplay = data.nickname || (data.email ? maskEmail(data.email) : '訪客');
+
+    html += `
+      <div class="leaderboard-row ${isSelf ? 'self-row' : ''}">
+        <span class="leaderboard-rank ${rankClass}">${rankEmoji}</span>
+        <span class="leaderboard-email">${nicknameDisplay}${isSelf ? ' (你)' : ''}</span>
+        <span class="leaderboard-score">${data.score}</span>
+        <span class="leaderboard-grade">${data.grade}</span>
+        <span class="leaderboard-date">${dateStr}</span>
+      </div>
+    `;
+    rank++;
+  });
+
+  leaderboardList.innerHTML = html;
 }
