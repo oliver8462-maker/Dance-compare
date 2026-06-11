@@ -2,9 +2,9 @@
 
 > **For Antigravity:** REQUIRED WORKFLOW: Use `.agent/workflows/execute-plan.md` to execute this plan in single-flow mode.
 
-**Goal:** Remove the Google Sign-in option and defer user nickname input until after score settlement, allowing the user to either confirm and upload the score or cancel and view the summary without uploading.
+**Goal:** Remove the Google Sign-in option and defer user nickname input until after score settlement, allowing the user to either confirm and upload the score or cancel and view the summary without uploading. Also resolve Firestore save timeouts by enabling long polling and increasing the timeout limit.
 
-**Architecture:** Remove Google Sign-in references from index.html, style.css, and app.js. Modify the nickname overlay trigger to run after the game finishes, prefilling existing nicknames and adding a cancel/skip button to allow bypassing the upload step.
+**Architecture:** Remove Google Sign-in references from index.html, style.css, and app.js. Modify the nickname overlay trigger to run after the game finishes, prefilling existing nicknames and adding a cancel/skip button to allow bypassing the upload step. Use `initializeFirestore` with `forceLongPolling: true` to avoid WebSocket-related connection timeouts and increase the write timeout to 10 seconds.
 
 **Tech Stack:** HTML5, CSS3, Vanilla JS, Firebase (Auth/Firestore), IndexedDB.
 
@@ -83,8 +83,19 @@ At the end of the file, add the following classes:
 **Files:**
 - Modify: [app.js](file:///c:/Users/user1/OneDrive/桌面/新專題跳舞/app.js)
 
-**Step 1: Clean up imports**
-Remove `GoogleAuthProvider` and `signInWithPopup` from the Firebase auth ES module import line (around line 6).
+**Step 1: Clean up imports and configure Long Polling**
+* Remove `GoogleAuthProvider` and `signInWithPopup` from the Firebase auth ES module import line (around line 6).
+* Replace `getFirestore` with `initializeFirestore` in the Firebase firestore ES module import (around line 7).
+* Initialize the database using `initializeFirestore` with `forceLongPolling` configuration:
+```javascript
+// Before:
+// const db = getFirestore(firebaseApp);
+
+// After:
+const db = initializeFirestore(firebaseApp, {
+  forceLongPolling: true
+});
+```
 
 **Step 2: Remove Google button references and event listeners**
 Delete the event listener binding logic for `googleLoginBtn` (around line 1442-1472).
@@ -131,7 +142,7 @@ async function checkNicknameAndPrompt() {
 
 ---
 
-### Task 4: Implement Post-Settlement Nickname Flow in app.js
+### Task 4: Implement Post-Settlement Nickname Flow and Increase Timeout in app.js
 
 **Files:**
 - Modify: [app.js](file:///c:/Users/user1/OneDrive/桌面/新專題跳舞/app.js)
@@ -175,8 +186,8 @@ function promptNicknameAndSubmit(score, grade) {
 }
 ```
 
-**Step 3: Modify Nickname Form Submit Handler**
-Update the form submission handler inside `setupAuthListeners()` to support the post-settlement submission flow:
+**Step 3: Modify Nickname Form Submit Handler & Increase Timeout**
+Update the form submission handler inside `setupAuthListeners()` to support the post-settlement submission flow and increase the timeout limit to 10 seconds (10000ms):
 ```javascript
   // Nickname Form submission
   const nicknameOverlay = document.getElementById('nickname-overlay');
@@ -202,13 +213,13 @@ Update the form submission handler inside `setupAuthListeners()` to support the 
         submitBtn.textContent = '儲存中...';
 
         if (currentUser) {
-          // Save to Firestore users collection with 3-second timeout
+          // Save to Firestore users collection with 10-second timeout
           await timeoutPromise(
             setDoc(doc(db, 'users', currentUser.uid), {
               nickname: nickname,
               updatedAt: serverTimestamp()
             }),
-            3000,
+            10000,
             "儲存超時，請檢查您的網路連線。"
           );
           userNickname = nickname;
@@ -274,5 +285,5 @@ Expected: PASS
 **Step 2: Commit all changes**
 ```bash
 git add index.html style.css app.js
-git commit -m "feat: remove Google Auth & implement post-settlement nickname prompt flow"
+git commit -m "feat: remove Google Auth, enable long polling & implement post-settlement nickname prompt flow"
 ```
