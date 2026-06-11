@@ -586,29 +586,34 @@ async function handleVideoUpload(file) {
   if (currentUser) {
     preprocessStatusText.textContent = "正在將影片上傳至雲端儲儲...";
     try {
-      const storageRef = ref(storage, `videos/${currentUser.uid}/${newVideoId}_${file.name}`);
-      const uploadSnapshot = await uploadBytes(storageRef, file);
-      const downloadURL = await getDownloadURL(uploadSnapshot.ref);
-      
-      finalUrlForState = downloadURL;
-      remoteStoragePath = `videos/${currentUser.uid}/${newVideoId}_${file.name}`;
-      
-      // Compress landmarks
-      const compressed = compressPoseFeatures(poseFeatures);
-      
-      // Save metadata & features to Firestore
-      await addDoc(collection(db, 'videos'), {
-        videoId: newVideoId,
-        userId: currentUser.uid,
-        name: file.name,
-        url: downloadURL,
-        storagePath: remoteStoragePath,
-        poseFeatures: JSON.stringify(compressed),
-        timestamp: serverTimestamp()
-      });
+      await timeoutPromise((async () => {
+        const storageRef = ref(storage, `videos/${currentUser.uid}/${newVideoId}_${file.name}`);
+        const uploadSnapshot = await uploadBytes(storageRef, file);
+        const downloadURL = await getDownloadURL(uploadSnapshot.ref);
+        
+        finalUrlForState = downloadURL;
+        remoteStoragePath = `videos/${currentUser.uid}/${newVideoId}_${file.name}`;
+        
+        // Compress landmarks
+        const compressed = compressPoseFeatures(poseFeatures);
+        
+        // Save metadata & features to Firestore
+        await addDoc(collection(db, 'videos'), {
+          videoId: newVideoId,
+          userId: currentUser.uid,
+          name: file.name,
+          url: downloadURL,
+          storagePath: remoteStoragePath,
+          poseFeatures: JSON.stringify(compressed),
+          timestamp: serverTimestamp()
+        });
+      })(), 15000, "上傳同步超時");
     } catch (err) {
       console.error('Failed to sync video to Firebase:', err);
-      alert('上傳至雲端失敗，但您的影片將仍保存在本地快取。');
+      // Fallback to local URL to not block play
+      finalUrlForState = videoURL;
+      remoteStoragePath = null;
+      alert('上傳至雲端失敗或超時，但您的影片已成功保存在本地快取。');
     }
   }
 
@@ -1656,14 +1661,18 @@ async function handleScoreSubmission(score, grade) {
   const videoName = activeVideo ? activeVideo.name : 'unknown';
 
   try {
-    await addDoc(collection(db, 'scores'), {
-      userId: currentUser ? currentUser.uid : `guest_${Date.now()}`,
-      nickname: userNickname || '訪客',
-      videoName: videoName,
-      score: parseFloat(score.toFixed(1)),
-      grade: grade,
-      timestamp: serverTimestamp()
-    });
+    await timeoutPromise(
+      addDoc(collection(db, 'scores'), {
+        userId: currentUser ? currentUser.uid : `guest_${Date.now()}`,
+        nickname: userNickname || '訪客',
+        videoName: videoName,
+        score: parseFloat(score.toFixed(1)),
+        grade: grade,
+        timestamp: serverTimestamp()
+      }),
+      10000,
+      "分數上傳超時"
+    );
 
     summaryScoreUploadStatus.className = 'summary-score-upload-status success';
     summaryScoreUploadStatus.textContent = '✓ 分數已成功上傳排行榜！';
