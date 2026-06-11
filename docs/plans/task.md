@@ -89,4 +89,11 @@
 | Task 83: Segment Scoring Tracking & Nickname-based Score Submission | [x] | Track segmentScores every 1.5 seconds, clear on retry, and record userNickname in Firestore scores collection |
 | Task 84: Render Segment Scores & Leaderboards in Summary Panels | [x] | Render segment scores list in summary left panel and fetch/render leaderboard list in summary right panel |
 | Task 85: Verification & Cleanup | [x] | Run math unit tests, verify Google login nickname flow, upload, cloud library sync, delete, and desktop three-column summary layout |
-
+| Task 86: Diagnose and Resolve Google Auth unauthorized-domain error | [x] | Analyze Firebase Authorized Domains requirement for the current host |
+| Task 87: Diagnose and fix missing nickname prompt on signup/login | [x] | Fix logic in registration and login flows to prompt for nickname |
+| Task 88: Add Firestore Timeout Wrapper for Nickname Save | [x] | Implement Promise timeout helper to reject slow/offline setDoc writes |
+| Task 95: Remove Google Auth - HTML & CSS Changes | [ ] | Delete google button from index.html and styles from style.css |
+| Task 96: Remove Google Auth - JS Changes | [ ] | Delete Google provider imports and event listener in app.js |
+| Task 97: Defer Nickname prompt and configure Firestore Long Polling | [ ] | Enable forceLongPolling in app.js, disable nickname overlay popup on login, and increase nickname save timeout to 10s |
+| Task 98: Implement Post-Settlement Nickname Flow in JS | [ ] | Implement promptNicknameAndSubmit in app.js, modify endDanceSession, and update submit/cancel overlay handlers |
+| Task 99: Final Verification & Walkthrough | [ ] | Run math unit tests, verify Google button is gone, nickname popup triggers on end of dance, cancel/confirm flow works, and no timeouts occur |
