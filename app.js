@@ -3,8 +3,8 @@ import { computeJointSimilarity, scaleScore, computeJointSimilarities, computeJo
 
 // Firebase SDK (v10 compat via CDN ES modules)
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
-import { getFirestore, collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, limit, getDocs, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { initializeFirestore, collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, limit, getDocs, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 // Firebase Configuration
@@ -20,7 +20,9 @@ const firebaseConfig = {
 
 const firebaseApp = initializeApp(firebaseConfig);
 const auth = getAuth(firebaseApp);
-const db = getFirestore(firebaseApp);
+const db = initializeFirestore(firebaseApp, {
+  forceLongPolling: true
+});
 const storage = getStorage(firebaseApp);
 
 // Index array of the 16 landmarks used in similarity calculations
@@ -81,37 +83,36 @@ let currentUser = null; // Firebase user object or null
 let isGuest = false;
 let isSignUpMode = false; // Toggle between login/signup form
 let userNickname = ''; // Logged-in nickname or guest nickname
+let isNewSignup = false; // Flag to track brand new user registrations
+let pendingScoreSubmission = null; // Store { score, grade } temporarily during post-settlement nickname setup
 
 async function checkNicknameAndPrompt() {
-  const nicknameOverlay = document.getElementById('nickname-overlay');
-  const nicknameInput = document.getElementById('nickname-input');
-  
   if (currentUser) {
+    if (isNewSignup) {
+      isNewSignup = false;
+      userNickname = '';
+      return;
+    }
+
     try {
       const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
       if (userDoc.exists() && userDoc.data().nickname) {
         userNickname = userDoc.data().nickname;
         updateAuthUI();
-        nicknameOverlay.classList.add('hidden');
       } else {
-        // Show nickname prompt
         userNickname = '';
-        nicknameInput.value = '';
-        nicknameOverlay.classList.remove('hidden');
       }
     } catch (err) {
       console.error('Error fetching user nickname:', err);
+      userNickname = '';
     }
   } else if (isGuest) {
     const saved = localStorage.getItem('guestNickname');
     if (saved) {
       userNickname = saved;
       updateAuthUI();
-      nicknameOverlay.classList.add('hidden');
     } else {
       userNickname = '';
-      nicknameInput.value = '';
-      nicknameOverlay.classList.remove('hidden');
     }
   }
 }
@@ -136,6 +137,27 @@ async function saveStateToIndexedDB() {
   } catch (err) {
     console.error('Failed to save state to IndexedDB:', err);
   }
+}
+
+/**
+ * Wraps a promise with a timeout. If the promise does not settle in `ms` milliseconds,
+ * the returned promise rejects with `errorMsg`.
+ */
+function timeoutPromise(promise, ms, errorMsg) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(errorMsg || "Timeout"));
+    }, ms);
+    promise
+      .then((res) => {
+        clearTimeout(timer);
+        resolve(res);
+      })
+      .catch((err) => {
+        clearTimeout(timer);
+        reject(err);
+      });
+  });
 }
 
 const JOINT_ADVICE = {
@@ -1145,8 +1167,28 @@ function endDanceSession() {
   finalScoreEl.textContent = finalAverage.toFixed(1);
   summarySection.classList.remove('hidden');
 
-  // Submit score to Firestore
-  handleScoreSubmission(finalAverage, grade);
+  // Open post-settlement nickname setup flow
+  promptNicknameAndSubmit(finalAverage, grade);
+}
+
+function promptNicknameAndSubmit(score, grade) {
+  pendingScoreSubmission = { score, grade };
+
+  const nicknameOverlay = document.getElementById('nickname-overlay');
+  const nicknameInput = document.getElementById('nickname-input');
+  const nicknameError = document.getElementById('nickname-error');
+
+  if (nicknameError) nicknameError.classList.add('hidden');
+
+  // Pre-fill nickname if already known
+  if (nicknameInput) {
+    nicknameInput.value = userNickname || '';
+  }
+
+  // Show the nickname modal
+  if (nicknameOverlay) {
+    nicknameOverlay.classList.remove('hidden');
+  }
 }
 
 async function refreshSummaryLeaderboard() {
@@ -1403,37 +1445,7 @@ function setupAuthListeners() {
     updateAuthUI();
   });
 
-  // Google Sign-In
-  const googleLoginBtn = document.getElementById('google-login-btn');
-  if (googleLoginBtn) {
-    googleLoginBtn.addEventListener('click', async () => {
-      const provider = new GoogleAuthProvider();
-      try {
-        hideAuthError();
-        googleLoginBtn.disabled = true;
-        const originalText = googleLoginBtn.innerHTML;
-        googleLoginBtn.textContent = '登入中...';
-        
-        await signInWithPopup(auth, provider);
-        
-        authOverlay.classList.add('hidden');
-      } catch (error) {
-        showAuthError(getFirebaseErrorMessage(error.code));
-      } finally {
-        googleLoginBtn.disabled = false;
-        // Restore button html
-        googleLoginBtn.innerHTML = `
-          <svg class="google-icon" viewBox="0 0 24 24" width="18" height="18">
-            <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.54 14.98 1 12 1 7.35 1 3.37 3.67 1.39 7.56l3.85 2.99c.9-2.7 3.4-4.51 6.76-4.51z"/>
-            <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.34H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v2.98h3.85c2.25-2.07 3.58-5.13 3.58-8.73z"/>
-            <path fill="#FBBC05" d="M5.24 10.55c-.23-.69-.36-1.43-.36-2.2s.13-1.51.36-2.2L1.39 3.16C.5 4.93 0 6.9 0 9s.5 4.07 1.39 5.84l3.85-2.99.01.7z"/>
-            <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.92l-3.85-2.98c-1.1.74-2.5 1.18-4.11 1.18-3.36 0-5.86-1.81-6.76-4.51L1.39 14.7C3.37 18.59 7.35 21 12 23z"/>
-          </svg>
-          使用 Google 帳號登入
-        `;
-      }
-    });
-  }
+
 
   // Login / Signup form submit
   authForm.addEventListener('submit', async (e) => {
@@ -1449,6 +1461,7 @@ function setupAuthListeners() {
 
     try {
       if (isSignUpMode) {
+        isNewSignup = true;
         await createUserWithEmailAndPassword(auth, email, password);
       } else {
         await signInWithEmailAndPassword(auth, email, password);
@@ -1456,6 +1469,7 @@ function setupAuthListeners() {
       // onAuthStateChanged will fire and handle UI
       authOverlay.classList.add('hidden');
     } catch (error) {
+      isNewSignup = false;
       showAuthError(getFirebaseErrorMessage(error.code));
     } finally {
       authSubmitBtn.disabled = false;
@@ -1478,7 +1492,7 @@ function setupAuthListeners() {
     isGuest = true;
     currentUser = null;
     authOverlay.classList.add('hidden');
-    checkNicknameAndPrompt();
+    updateAuthUI();
   });
 
   // Header action button (login/signup or logout)
@@ -1504,6 +1518,7 @@ function setupAuthListeners() {
   const nicknameForm = document.getElementById('nickname-form');
   const nicknameInput = document.getElementById('nickname-input');
   const nicknameError = document.getElementById('nickname-error');
+  const nicknameCancelBtn = document.getElementById('nickname-cancel-btn');
 
   if (nicknameForm) {
     nicknameForm.addEventListener('submit', async (e) => {
@@ -1522,13 +1537,17 @@ function setupAuthListeners() {
         submitBtn.textContent = '儲存中...';
 
         if (currentUser) {
-          // Save to Firestore users collection
-          await setDoc(doc(db, 'users', currentUser.uid), {
-            nickname: nickname,
-            updatedAt: serverTimestamp()
-          });
+          // Save to Firestore users collection with 10-second timeout
+          await timeoutPromise(
+            setDoc(doc(db, 'users', currentUser.uid), {
+              nickname: nickname,
+              updatedAt: serverTimestamp()
+            }),
+            10000,
+            "儲存超時，請檢查您的網路連線。"
+          );
           userNickname = nickname;
-        } else if (isGuest) {
+        } else {
           // Save to LocalStorage for guest
           localStorage.setItem('guestNickname', nickname);
           userNickname = nickname;
@@ -1536,15 +1555,45 @@ function setupAuthListeners() {
 
         updateAuthUI();
         nicknameOverlay.classList.add('hidden');
+
+        // Submit pending score if exists
+        if (pendingScoreSubmission) {
+          await handleScoreSubmission(pendingScoreSubmission.score, pendingScoreSubmission.grade);
+          pendingScoreSubmission = null;
+        }
+
+        // Refresh leaderboards
+        refreshSummaryLeaderboard();
+        refreshLeaderboard();
       } catch (err) {
         console.error('Failed to save nickname:', err);
-        nicknameError.textContent = '儲存失敗，請檢查網路連線。';
+        nicknameError.textContent = err.message && err.message.includes('儲存超時')
+          ? err.message
+          : '儲存失敗，請檢查網路連線。';
         nicknameError.classList.remove('hidden');
       } finally {
         const submitBtn = document.getElementById('nickname-submit-btn');
         submitBtn.disabled = false;
-        submitBtn.textContent = '確認儲存';
+        submitBtn.textContent = '確認儲存並上傳';
       }
+    });
+  }
+
+  // Cancel/Skip button handler
+  if (nicknameCancelBtn) {
+    nicknameCancelBtn.addEventListener('click', () => {
+      if (nicknameOverlay) {
+        nicknameOverlay.classList.add('hidden');
+      }
+      pendingScoreSubmission = null; // Clear pending
+
+      // Still refresh leaderboards to show current top scores
+      refreshSummaryLeaderboard();
+      refreshLeaderboard();
+
+      summaryScoreUploadStatus.className = 'summary-score-upload-status guest';
+      summaryScoreUploadStatus.textContent = '💡 分數未上傳。重新測試或上傳新影片可再次挑戰！';
+      summaryScoreUploadStatus.classList.remove('hidden');
     });
   }
 }

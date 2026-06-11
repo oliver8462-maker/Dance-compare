@@ -52,15 +52,7 @@
                     <a href="#" id="auth-toggle-link">點此註冊</a>
                 </p>
 
-                <button id="google-login-btn" class="btn btn-google">
-                    <svg class="google-icon" viewBox="0 0 24 24" width="18" height="18">
-                        <path fill="#EA4335" d="M12 5.04c1.66 0 3.2.57 4.38 1.69l3.27-3.27C17.67 1.54 14.98 1 12 1 7.35 1 3.37 3.67 1.39 7.56l3.85 2.99c.9-2.7 3.4-4.51 6.76-4.51z"/>
-                        <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.34H12v4.51h6.46c-.29 1.48-1.14 2.73-2.4 3.58v2.98h3.85c2.25-2.07 3.58-5.13 3.58-8.73z"/>
-                        <path fill="#FBBC05" d="M5.24 10.55c-.23-.69-.36-1.43-.36-2.2s.13-1.51.36-2.2L1.39 3.16C.5 4.93 0 6.9 0 9s.5 4.07 1.39 5.84l3.85-2.99.01.7z"/>
-                        <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.92l-3.85-2.98c-1.1.74-2.5 1.18-4.11 1.18-3.36 0-5.86-1.81-6.76-4.51L1.39 14.7C3.37 18.59 7.35 21 12 23z"/>
-                    </svg>
-                    使用 Google 帳號登入
-                </button>
+
 
                 <div class="auth-divider">
                     <span>或</span>
@@ -82,7 +74,10 @@
                         <label for="nickname-input">暱稱 (2-15 個字元)</label>
                         <input type="text" id="nickname-input" placeholder="請輸入暱稱" required minlength="2" maxlength="15" />
                     </div>
-                    <button type="submit" id="nickname-submit-btn" class="btn btn-primary btn-large auth-submit-btn">確認儲存</button>
+                    <div class="nickname-actions">
+                        <button type="submit" id="nickname-submit-btn" class="btn btn-primary btn-large auth-submit-btn">確認儲存並上傳</button>
+                        <button type="button" id="nickname-cancel-btn" class="btn btn-secondary btn-large auth-cancel-btn">暫不上傳</button>
+                    </div>
                 </form>
             </div>
         </div>

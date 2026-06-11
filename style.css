@@ -1478,34 +1478,7 @@ body {
   }
 }
 
-/* Google Sign-in Button Styles */
-.btn-google {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 0.85rem 1.5rem;
-  font-size: 0.95rem;
-  border-radius: 14px;
-  font-weight: 600;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: #ffffff;
-  color: #1e293b;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: 1.2rem;
-}
 
-.btn-google:hover {
-  background: #f8fafc;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
-}
-
-.google-icon {
-  display: block;
-}
 
 /* Boot Overlay */
 .boot-overlay {
@@ -1650,5 +1623,30 @@ body {
   .segment-scores-list {
     max-height: 520px;
   }
+}
+
+/* Nickname post-settlement buttons layout */
+.nickname-actions {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.nickname-actions .btn {
+  flex: 1;
+  margin-top: 0;
+}
+
+.auth-cancel-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+}
+
+.auth-cancel-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-main);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
