@@ -3,7 +3,7 @@ import { computeJointSimilarity, scaleScore, computeJointSimilarities, computeJo
 
 // Firebase SDK (v10 compat via CDN ES modules)
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, onAuthStateChanged, signInAnonymously } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import { initializeFirestore, collection, addDoc, doc, setDoc, getDoc, query, where, orderBy, limit, getDocs, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
@@ -119,7 +119,11 @@ async function checkNicknameAndPrompt() {
     }
 
     try {
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const userDoc = await timeoutPromise(
+        getDoc(doc(db, 'users', currentUser.uid)),
+        2000,
+        "Fetch nickname timeout"
+      );
       if (userDoc.exists() && userDoc.data().nickname) {
         userNickname = userDoc.data().nickname;
         updateAuthUI();
@@ -432,9 +436,12 @@ window.addEventListener('DOMContentLoaded', async () => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         currentUser = user;
-        isGuest = false;
+        isGuest = user.isAnonymous;
         await checkNicknameAndPrompt();
         await syncCloudVideoLibrary();
+      } else {
+        currentUser = null;
+        isGuest = false;
       }
       updateAuthUI();
       unsubscribe(); // Only listen once for boot
@@ -452,7 +459,7 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (savedVideos && savedVideos.length > 0) {
         uploadedVideos = savedVideos.map(v => ({
           ...v,
-          url: URL.createObjectURL(v.file) // Re-create Blob URL from persisted File
+          url: v.file ? URL.createObjectURL(v.file) : v.url
         }));
       }
       if (savedActiveId) {
@@ -683,7 +690,11 @@ async function syncCloudVideoLibrary() {
       where('userId', '==', currentUser.uid),
       orderBy('timestamp', 'desc')
     );
-    const snapshot = await getDocs(q);
+    const snapshot = await timeoutPromise(
+      getDocs(q),
+      3000,
+      "Sync videos timeout"
+    );
     
     snapshot.forEach(doc => {
       const data = doc.data();
@@ -1248,7 +1259,11 @@ async function refreshSummaryLeaderboard() {
       limit(5)
     );
 
-    const snapshot = await getDocs(scoresQuery);
+    const snapshot = await timeoutPromise(
+      getDocs(scoresQuery),
+      2000,
+      "Summary leaderboard timeout"
+    );
     snapshot.forEach((doc) => {
       scores.push(doc.data());
     });
@@ -1489,11 +1504,14 @@ function setupAuthListeners() {
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       currentUser = user;
-      isGuest = false;
+      isGuest = user.isAnonymous;
       await checkNicknameAndPrompt();
       if (typeof syncCloudVideoLibrary === 'function') {
         await syncCloudVideoLibrary();
       }
+    } else {
+      currentUser = null;
+      isGuest = false;
     }
     updateAuthUI();
   });
@@ -1541,17 +1559,24 @@ function setupAuthListeners() {
   });
 
   // Guest mode button
-  guestBtn.addEventListener('click', () => {
-    isGuest = true;
-    currentUser = null;
-    authOverlay.classList.add('hidden');
-    updateAuthUI();
+  guestBtn.addEventListener('click', async () => {
+    hideAuthError();
+    try {
+      await signInAnonymously(auth);
+      authOverlay.classList.add('hidden');
+    } catch (err) {
+      console.error('Anonymous sign in failed, continuing as offline guest:', err);
+      isGuest = true;
+      currentUser = null;
+      authOverlay.classList.add('hidden');
+      updateAuthUI();
+    }
   });
 
   // Header action button (login/signup or logout)
   authActionBtn.addEventListener('click', () => {
-    if (currentUser) {
-      // Logout
+    if (currentUser && !currentUser.isAnonymous) {
+      // Logout registered user
       signOut(auth).then(() => {
         currentUser = null;
         isGuest = true;
@@ -1561,7 +1586,7 @@ function setupAuthListeners() {
         updateAuthUI();
       });
     } else {
-      // Show auth overlay for login/signup
+      // Show auth overlay for login/signup (guest or unregistered)
       authOverlay.classList.remove('hidden');
     }
   });
@@ -1659,10 +1684,10 @@ function setupAuthListeners() {
 
 function updateAuthUI() {
   authUserInfo.classList.remove('hidden');
-  if (currentUser) {
+  if (currentUser && !currentUser.isAnonymous) {
     authUserLabel.textContent = `👤 ${userNickname || currentUser.email}`;
     authActionBtn.textContent = '登出';
-  } else if (isGuest) {
+  } else if (isGuest || (currentUser && currentUser.isAnonymous)) {
     authUserLabel.textContent = `👤 ${userNickname || '訪客模式 (Guest)'}`;
     authActionBtn.textContent = '登入 / 註冊';
   }
@@ -1776,7 +1801,11 @@ async function refreshLeaderboard() {
       limit(5)
     );
 
-    const snapshot = await getDocs(scoresQuery);
+    const snapshot = await timeoutPromise(
+      getDocs(scoresQuery),
+      2000,
+      "Leaderboard query timeout"
+    );
     snapshot.forEach((doc) => {
       scores.push(doc.data());
     });

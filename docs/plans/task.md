@@ -183,3 +183,9 @@
 | Task 97: Defer Nickname prompt and configure Firestore Long Polling | [x] | Enable forceLongPolling in app.js, disable nickname overlay popup on login, and increase nickname save timeout to 10s |
 | Task 98: Implement Post-Settlement Nickname Flow in JS | [x] | Implement promptNicknameAndSubmit in app.js, modify endDanceSession, and update submit/cancel overlay handlers |
 | Task 99: Final Verification & Walkthrough | [x] | Run math unit tests, verify Google button is gone, nickname popup triggers on end of dance, cancel/confirm flow works, and no timeouts occur |
+| Task 100: Brainstorming & Design Phase for Stricter Scoring and Guest Cloud Sync | [x] | Plan 2.5 divisor and Firebase Anonymous Auth, create design doc and implementation plan |
+| Task 101: Implement Stricter Scoring Divisor (2.5) in math-utils.js & Update Unit Tests | [x] | Update divisor to 2.5 and verify math tests pass |
+| Task 102: Fix Boot Data Restore (URL.createObjectURL fallback) | [x] | Fallback to cloud url if local file object is null |
+| Task 103: Implement Anonymous Auth for Guest Button | [x] | Integrate signInAnonymously in app.js |
+| Task 104: Update Auth State Observer and UI Flow for Guest Mode | [x] | Update UI login actions and handle isAnonymous |
+| Task 105: Verification & Walkthrough | [x] | Run tests, verify Guest Cloud Sync and Stricter scoring, write walkthrough |

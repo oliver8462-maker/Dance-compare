@@ -57,9 +57,9 @@ mockLandmarksUserStricter[15] = p_user3;
 
 const detailsStricter = computeJointDetails(mockLandmarksRef, mockLandmarksUserStricter);
 const leftElbowSim = detailsStricter.LEFT_ELBOW.sim;
-const expectedSim = Math.max(0, 1 - (Math.PI / 2) / 2.7);
-assert.ok(Math.abs(leftElbowSim - expectedSim) < 1e-5, `LEFT_ELBOW similarity should be calibrated with 2.7 divisor, got ${leftElbowSim}, expected ${expectedSim}`);
-assert.ok(leftElbowSim < 0.5, `Similarity should be strictly lower than 0.5 (which Math.PI divisor would yield), got ${leftElbowSim}`);
+const expectedSim = Math.max(0, 1 - (Math.PI / 2) / 2.5);
+assert.ok(Math.abs(leftElbowSim - expectedSim) < 1e-5, `LEFT_ELBOW similarity should be calibrated with 2.5 divisor, got ${leftElbowSim}, expected ${expectedSim}`);
+assert.ok(leftElbowSim < 0.5, `Similarity should be strictly lower than 0.5, got ${leftElbowSim}`);
 
 console.log('All math tests passed successfully!');
 
